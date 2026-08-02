@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "smartsearch",
+  "version": "1.0.0",
+  "name": "SmartSearch",
+  "environment": "*",
+  "depends": {
+    "java": ">=21",
+    "oneconfigv1": "*"
+  },
+  "authors": [
+    "PolyFrost",
+    "DeDiamondPro"
+  ],
+  "entrypoints": {
+    "client": [
+      "org.polyfrost.polysearch.entry.FabricEntryPoint"
+    ]
+  }
+}

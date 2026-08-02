@@ -1,0 +1,36 @@
+[versions]
+# Embedding things
+langchain4j = "1.18.1"
+onnx_runtime = "1.27.0"
+deep_java_library = "0.36.0"
+
+# Database
+lucene = "10.5.0"
+
+[libraries]
+langchain4j = { module = "dev.langchain4j:langchain4j", version.ref = "langchain4j" } # Might be able to remove this?
+langchain4j_bom = { module = "dev.langchain4j:langchain4j-bom", version.ref = "langchain4j" }
+langchain4j_core = { module = "dev.langchain4j:langchain4j-core" }
+langchain4j_embeddings = { module = "dev.langchain4j:langchain4j-embeddings" }
+langchain4j_model = { module = "dev.langchain4j:langchain4j-embeddings-all-minilm-l6-v2-q" }
+
+onnx_runtime = { module = "com.microsoft.onnxruntime:onnxruntime", version.ref = "onnx_runtime" }
+deep_java_library = { module = "ai.djl:api", version.ref = "deep_java_library" }
+deep_java_library_tokenizer = { module = "ai.djl.huggingface:tokenizers", version.ref = "deep_java_library" }
+
+lucene_core = { module = "org.apache.lucene:lucene-core", version.ref = "lucene" }
+
+[bundles]
+embedding = [
+    "langchain4j",
+    "langchain4j_core",
+    "langchain4j_embeddings",
+    "langchain4j_model",
+    "onnx_runtime",
+    "deep_java_library",
+    "deep_java_library_tokenizer"
+]
+
+database = [
+    "lucene_core"
+]
