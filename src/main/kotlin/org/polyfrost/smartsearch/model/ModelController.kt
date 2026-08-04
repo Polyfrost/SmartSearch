@@ -27,8 +27,8 @@ object ModelController {
             val start = System.currentTimeMillis()
             model = modelFactory.create()
             state = State.LOADED
-            onLoaded?.invoke(model)
             SmartSearchClient.LOGGER.info("Loaded embedding model in ${System.currentTimeMillis() - start}ms")
+            onLoaded?.invoke(model)
         } catch (e: UnsatisfiedLinkError) {
             state = State.NO_NATIVES
             SmartSearchClient.LOGGER.warn("Failed to load native libraries", e)

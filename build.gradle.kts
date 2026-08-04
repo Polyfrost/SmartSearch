@@ -1,5 +1,4 @@
 import net.fabricmc.loom.build.nesting.NestableJarGenerationTask
-import org.cadixdev.mercury.shadow.org.eclipse.jdt.core.dom.ModuleModifier.isTransitive
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -31,7 +30,7 @@ dependencies {
     minecraft("com.mojang:minecraft:26.2")
     implementation("net.fabricmc:fabric-loader:0.19.3")
 
-    val oneConfigVersion = "1.0.13+SEARCH1"
+    val oneConfigVersion = "1.0.13+SEARCH2"
     runtimeOnly("org.polyfrost.oneconfig:26.2-fabric:$oneConfigVersion")
     for (module in listOf("config", "config-impl", "events", "internal")) {
         implementation("org.polyfrost.oneconfig:$module:$oneConfigVersion")

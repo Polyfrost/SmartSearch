@@ -4,8 +4,12 @@ import dev.langchain4j.model.embedding.onnx.allminilml6v2q.AllMiniLmL6V2Quantize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.polyfrost.oneconfig.api.event.v1.EventManager
+import org.polyfrost.oneconfig.api.event.v1.events.ShutdownEvent
 import org.polyfrost.oneconfig.internal.ui.search.SearchProviderRegistry
 import org.polyfrost.smartsearch.config.SmartSearchConfig
+import org.polyfrost.smartsearch.index.DataStore
+import org.polyfrost.smartsearch.index.Embedder
 import org.polyfrost.smartsearch.model.ModelController
 import org.polyfrost.smartsearch.search.SmartSearchProvider
 import org.slf4j.Logger
@@ -15,12 +19,16 @@ object SmartSearchClient {
     val LOGGER: Logger = LoggerFactory.getLogger(SmartSearchClient::class.java)
 
     fun init() {
-        //EventListener.register()
         SmartSearchConfig.preload()
         SearchProviderRegistry.registerSearchProvider(SmartSearchProvider)
 
         CoroutineScope(Dispatchers.Default).launch {
-            ModelController.init(AllMiniLmL6V2QuantizedEmbeddingModelFactory())
+            ModelController.init(AllMiniLmL6V2QuantizedEmbeddingModelFactory()) {
+                Embedder.startEmbeddings()
+            }
+        }
+        EventManager.register(ShutdownEvent::class.java) { _ ->
+            DataStore.close()
         }
     }
 }

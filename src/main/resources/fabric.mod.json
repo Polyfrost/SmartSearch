@@ -9,12 +9,12 @@
     "oneconfigv1": "*"
   },
   "authors": [
-    "PolyFrost",
+    "Polyfrost",
     "DeDiamondPro"
   ],
   "entrypoints": {
     "client": [
-      "org.polyfrost.polysearch.entry.FabricEntryPoint"
+      "org.polyfrost.smartsearch.entry.FabricEntryPoint"
     ]
   }
 }
