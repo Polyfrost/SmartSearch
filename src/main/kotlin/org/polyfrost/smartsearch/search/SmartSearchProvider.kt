@@ -11,6 +11,7 @@ import org.polyfrost.oneconfig.internal.ui.search.SearchProvider
 import org.polyfrost.oneconfig.internal.ui.search.SearchScope
 import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.index.DataStore
+import org.polyfrost.smartsearch.index.Embedder
 import org.polyfrost.smartsearch.index.toKey
 import org.polyfrost.smartsearch.model.ModelController
 
@@ -20,7 +21,7 @@ object SmartSearchProvider : SearchProvider {
     override val priority: Int = 1
 
     override fun isAvailable(): Boolean {
-        return ModelController.isReady()
+        return ModelController.isReady() && DataStore.status == DataStore.Status.READY && !Embedder.isRunning()
     }
 
     override fun <T> searchGrouped(

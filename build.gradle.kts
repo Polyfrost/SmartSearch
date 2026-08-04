@@ -6,6 +6,7 @@ import java.util.zip.ZipOutputStream
 
 plugins {
     kotlin("jvm") version "2.4.0"
+    kotlin("plugin.compose") version "2.4.0"
     id("net.fabricmc.fabric-loom")
     id("de.undercouch.download") version "5.7.0"
 }

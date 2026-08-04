@@ -14,6 +14,8 @@ object ModelController {
     }
 
     private lateinit var model: EmbeddingModel
+
+    @Volatile
     var state: State = State.NOT_LOADED
         private set
 

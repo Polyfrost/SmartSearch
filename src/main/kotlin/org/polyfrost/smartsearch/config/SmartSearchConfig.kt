@@ -1,10 +1,13 @@
 package org.polyfrost.smartsearch.config
 
 import org.polyfrost.oneconfig.api.config.v1.Config
+import org.polyfrost.oneconfig.api.config.v1.Properties
+import org.polyfrost.oneconfig.api.config.v1.Tree
 import org.polyfrost.oneconfig.api.config.v1.annotations.Button
 import org.polyfrost.oneconfig.api.config.v1.annotations.Number
 import org.polyfrost.oneconfig.api.config.v1.annotations.Switch
 import org.polyfrost.smartsearch.index.DataStore
+import org.polyfrost.smartsearch.ui.IndexerStatusVisualizer
 import org.polyfrost.smartsearch.util.DocumentExporter
 
 object SmartSearchConfig : Config(
@@ -18,7 +21,7 @@ object SmartSearchConfig : Config(
     var enabled: Boolean = true
 
     @Button(
-        title = "Cleanup database",
+        title = "Clean database",
     )
     fun cleanDb() {
         DataStore.clean()
@@ -155,5 +158,22 @@ object SmartSearchConfig : Config(
     )
     fun exportSearchDocuments() {
         DocumentExporter.export()
+    }
+
+    override fun makeTree(): Tree {
+        // Put at the top
+        val collected = super.makeTree()
+        val reordered = Tree(collected.id, collected.title, collected.description, null)
+
+        // Add status visualizer
+        reordered.put(Properties.dummy("indexerStatus", "Search index", "The state of the embedding model and the search index.").apply {
+            addMetadata("visualizer", IndexerStatusVisualizer)
+            addMetadata("category", "General")
+            addMetadata("subcategory", "General")
+        })
+        collected.map.values.forEach(reordered::put)
+        collected.metadata?.let { reordered.addMetadata(HashMap(it)) }
+
+        return reordered
     }
 }

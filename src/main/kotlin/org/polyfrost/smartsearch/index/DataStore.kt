@@ -46,6 +46,9 @@ object DataStore {
         INGESTING
     }
 
+    /** How much of the index is written, as of the last commit */
+    data class Stats(val documents: Int, val embedded: Int)
+
     private val directory: Directory = FSDirectory.open(Path("smartsearch-db"))
     private val analyzer: StandardAnalyzer = StandardAnalyzer()
     private val config: IndexWriterConfig = IndexWriterConfig(analyzer)
@@ -53,7 +56,20 @@ object DataStore {
         commit()  // Create db file
     }
 
+    @Volatile
+    var status: Status = Status.READY
+        private set
+
+    @Volatile
+    var stats: Stats = Stats(0, 0)
+        private set
+
+    init {
+        refreshStats()
+    }
+
     fun ingest(added: List<SearchDocument<*>>) {
+        status = Status.INGESTING
         DirectoryReader.open(directory).use { reader ->
             val searcher = IndexSearcher(reader)
             val start = System.currentTimeMillis()
@@ -78,9 +94,11 @@ object DataStore {
                 }
             }
             writer.commit()
+            refreshStats()
             SmartSearchClient.LOGGER.info("Added $addedCount and updated $updatedCount documents in ${System.currentTimeMillis() - start}ms")
             Embedder.queueEmbedding(toEmbed)
         }
+        status = Status.READY
     }
 
     fun clean() {
@@ -104,6 +122,7 @@ object DataStore {
                 val terms = staleIds.map { Term("id", it) }.toTypedArray()
                 writer.deleteDocuments(*terms)
                 writer.commit()
+                refreshStats()
                 SmartSearchClient.LOGGER.info("Removed ${staleIds.size} stale search documents")
             }
         }
@@ -122,6 +141,18 @@ object DataStore {
             writer.updateDocument(Term("id", doc.id), newDoc)
         }
         writer.commit()
+        refreshStats()
+    }
+
+    private fun refreshStats() {
+        stats = runCatching {
+            DirectoryReader.open(directory).use { reader ->
+                Stats(reader.numDocs(), IndexSearcher(reader).count(FieldExistsQuery("embedding")))
+            }
+        }.getOrElse {
+            SmartSearchClient.LOGGER.warn("Failed to read index stats", it)
+            return
+        }
     }
 
     private fun checkStatus(searcher: IndexSearcher, document: SearchDocument<*>): EntryStatus {

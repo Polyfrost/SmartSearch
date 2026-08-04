@@ -58,6 +58,9 @@ object Embedder {
         addNotNull(doc.metadata.path)
         addNotNull(doc.metadata.modTitle)
     }.removeSuffix("\n")
+
+    fun isRunning() = isRunning.get()
+    val pending: Int get() = toEmbed.size
 }
 
 private fun <T> StringBuilder.addNotNull(obj: T?, terminator: String? = "\n", strFunc: ((T) -> String)? = null) {
