@@ -56,7 +56,7 @@ object SmartSearchConfig : Config(
         min = 1f,
         max = 200f
     )
-    var maxLexicalResults: Int = 20
+    var maxLexicalResults: Int = 100
 
     @Number(
         title = "Lexical Title Boost",
@@ -97,7 +97,7 @@ object SmartSearchConfig : Config(
         min = 1f,
         max = 200f
     )
-    var maxKnnResults: Int = 20
+    var maxKnnResults: Int = 100
 
     @Number(
         title = "Minimum Semantic Score",
@@ -117,7 +117,7 @@ object SmartSearchConfig : Config(
         min = 1f,
         max = 10f,
     )
-    var KnnWeightScalingStartWords: Int = 3
+    var KnnWeightScalingStartWords: Int = 2
 
     @Number(
         title = "Words for maximum semantic weight",
