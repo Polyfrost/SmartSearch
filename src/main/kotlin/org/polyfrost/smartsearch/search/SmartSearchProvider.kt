@@ -103,7 +103,11 @@ object SmartSearchProvider : SearchProvider {
     /** The query as a vector, or null if the model isn't available */
     private fun embed(query: String): FloatArray? {
         if (!ModelController.isReady()) return null
-        return runCatching { ModelController.getModel().embed(query).content().vector() }.getOrNull()
+        return runCatching {
+            ModelController.getModel().embed(
+                ModelController.getQueryPrefix() + query
+            ).content().vector()
+        }.getOrNull()
     }
 
     private fun filtered(query: Query, filter: Query?): Query = if (filter == null) query else {

@@ -12,7 +12,6 @@ langchain4j = { module = "dev.langchain4j:langchain4j", version.ref = "langchain
 langchain4j_bom = { module = "dev.langchain4j:langchain4j-bom", version.ref = "langchain4j" }
 langchain4j_core = { module = "dev.langchain4j:langchain4j-core" }
 langchain4j_embeddings = { module = "dev.langchain4j:langchain4j-embeddings" }
-langchain4j_model = { module = "dev.langchain4j:langchain4j-embeddings-all-minilm-l6-v2-q" }
 
 onnx_runtime = { module = "com.microsoft.onnxruntime:onnxruntime", version.ref = "onnx_runtime" }
 deep_java_library = { module = "ai.djl:api", version.ref = "deep_java_library" }
@@ -25,7 +24,6 @@ embedding = [
     "langchain4j",
     "langchain4j_core",
     "langchain4j_embeddings",
-    "langchain4j_model",
     "onnx_runtime",
     "deep_java_library",
     "deep_java_library_tokenizer"

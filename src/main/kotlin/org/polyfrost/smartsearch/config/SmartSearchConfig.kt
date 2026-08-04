@@ -5,6 +5,7 @@ import org.polyfrost.oneconfig.api.config.v1.annotations.Button
 import org.polyfrost.oneconfig.api.config.v1.annotations.Number
 import org.polyfrost.oneconfig.api.config.v1.annotations.Switch
 import org.polyfrost.smartsearch.index.DataStore
+import org.polyfrost.smartsearch.util.DocumentExporter
 
 object SmartSearchConfig : Config(
     "polysearch.json",
@@ -145,4 +146,14 @@ object SmartSearchConfig : Config(
         max = 3f,
     )
     var maxKnnWeight: Float = 1.4f
+
+    @Button(
+        title = "Export Search Documents",
+        description = "Export all currently loaded search documents, useful for benchmarking.",
+        category = "Advanced",
+        subcategory = "Misc"
+    )
+    fun exportSearchDocuments() {
+        DocumentExporter.export()
+    }
 }

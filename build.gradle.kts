@@ -1,4 +1,5 @@
 import net.fabricmc.loom.build.nesting.NestableJarGenerationTask
+import de.undercouch.gradle.tasks.download.Download
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -6,6 +7,7 @@ import java.util.zip.ZipOutputStream
 plugins {
     kotlin("jvm") version "2.4.0"
     id("net.fabricmc.fabric-loom")
+    id("de.undercouch.download") version "5.7.0"
 }
 
 group = "org.polyfrost"
@@ -69,6 +71,30 @@ configurations.testRuntimeClasspath {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+val downloadEmbeddingModel by tasks.registering(Download::class) {
+    // Download the model used
+    src(
+        listOf(
+            "https://huggingface.co/Snowflake/snowflake-arctic-embed-xs/resolve/main/onnx/model_int8.onnx",
+            "https://huggingface.co/Snowflake/snowflake-arctic-embed-xs/resolve/main/tokenizer.json"
+        )
+    )
+    dest(layout.buildDirectory.dir("downloaded-models/models/arctic-embed-xs"))
+    overwrite(false)
+    onlyIfModified(true)
+    tempAndMove(true)
+}
+
+sourceSets.main {
+    resources {
+        srcDir(layout.buildDirectory.dir("downloaded-models"))
+    }
+}
+
+tasks.named("processResources") {
+    dependsOn(downloadEmbeddingModel)
 }
 
 // Strip out Linux ARM natives, almost no consumer PCs run Linux on ARM right now

@@ -1,6 +1,5 @@
 package org.polyfrost.smartsearch
 
-import dev.langchain4j.model.embedding.onnx.allminilml6v2q.AllMiniLmL6V2QuantizedEmbeddingModelFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -10,6 +9,7 @@ import org.polyfrost.oneconfig.internal.ui.search.SearchProviderRegistry
 import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.index.DataStore
 import org.polyfrost.smartsearch.index.Embedder
+import org.polyfrost.smartsearch.model.ArcticEmbedXsFactory
 import org.polyfrost.smartsearch.model.ModelController
 import org.polyfrost.smartsearch.search.SmartSearchProvider
 import org.slf4j.Logger
@@ -23,7 +23,7 @@ object SmartSearchClient {
         SearchProviderRegistry.registerSearchProvider(SmartSearchProvider)
 
         CoroutineScope(Dispatchers.Default).launch {
-            ModelController.init(AllMiniLmL6V2QuantizedEmbeddingModelFactory()) {
+            ModelController.init(ArcticEmbedXsFactory) {
                 Embedder.startEmbeddings()
             }
         }

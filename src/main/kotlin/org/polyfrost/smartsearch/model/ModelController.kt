@@ -29,6 +29,7 @@ object ModelController {
             state = State.LOADED
             SmartSearchClient.LOGGER.info("Loaded embedding model in ${System.currentTimeMillis() - start}ms")
             onLoaded?.invoke(model)
+            SmartSearchClient.LOGGER.info(getQueryPrefix())
         } catch (e: UnsatisfiedLinkError) {
             state = State.NO_NATIVES
             SmartSearchClient.LOGGER.warn("Failed to load native libraries", e)
@@ -43,6 +44,13 @@ object ModelController {
             throw IllegalStateException("Tried to access embedding model before it was loaded")
         }
         return model
+    }
+
+    fun getQueryPrefix(): String {
+        if (model is ArcticEmbedXs) {
+            return "Represent this sentence for searching relevant passages: "
+        }
+        return ""
     }
 
     fun isReady(): Boolean = state == State.LOADED
