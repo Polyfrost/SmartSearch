@@ -72,6 +72,11 @@ configurations.testRuntimeClasspath {
 
 tasks.test {
     useJUnitPlatform()
+    // Forward -Deval.* to the test JVM so the search evaluation sweep can be switched on from the command line.
+    systemProperties(providers.systemPropertiesPrefixedBy("eval.").get())
+    testLogging {
+        showStandardStreams = true
+    }
 }
 
 val downloadEmbeddingModel by tasks.registering(Download::class) {

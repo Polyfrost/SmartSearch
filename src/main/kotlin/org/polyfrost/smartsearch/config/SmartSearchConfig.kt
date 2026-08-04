@@ -6,7 +6,9 @@ import org.polyfrost.oneconfig.api.config.v1.Tree
 import org.polyfrost.oneconfig.api.config.v1.annotations.Button
 import org.polyfrost.oneconfig.api.config.v1.annotations.Number
 import org.polyfrost.oneconfig.api.config.v1.annotations.Switch
+import org.polyfrost.oneconfig.internal.ui.search.SearchCorpus
 import org.polyfrost.smartsearch.index.DataStore
+import org.polyfrost.smartsearch.search.SearchParams
 import org.polyfrost.smartsearch.ui.IndexerStatusVisualizer
 import org.polyfrost.smartsearch.util.DocumentExporter
 
@@ -24,8 +26,24 @@ object SmartSearchConfig : Config(
         title = "Clean database",
     )
     fun cleanDb() {
-        DataStore.clean()
+        DataStore.clean(SearchCorpus.corpus.keys)
     }
+
+    val params: SearchParams
+        get() = SearchParams(
+            maxResults = maxResults,
+            rankFusionDampening = rankFusionDampening,
+            maxLexicalResults = maxLexicalResults,
+            lexicalTitleBoost = lexicalTitleBoost,
+            lexicalExactBoost = lexicalExactBoost,
+            lexicalMinFuzzyLength = lexicalMinFuzzyLength,
+            maxKnnResults = maxKnnResults,
+            minKnnScore = minKnnScore,
+            knnWeightScalingStartWords = KnnWeightScalingStartWords,
+            maxKnnWeightWords = maxKnnWeightWords,
+            minKnnWeight = minKnnWeight,
+            maxKnnWeight = maxKnnWeight,
+        )
 
     @Number(
         title = "Maximum Results",
@@ -166,11 +184,16 @@ object SmartSearchConfig : Config(
         val reordered = Tree(collected.id, collected.title, collected.description, null)
 
         // Add status visualizer
-        reordered.put(Properties.dummy("indexerStatus", "Search index", "The state of the embedding model and the search index.").apply {
-            addMetadata("visualizer", IndexerStatusVisualizer)
-            addMetadata("category", "General")
-            addMetadata("subcategory", "General")
-        })
+        reordered.put(
+            Properties.dummy(
+                "indexerStatus",
+                "Search index",
+                "The state of the embedding model and the search index."
+            ).apply {
+                addMetadata("visualizer", IndexerStatusVisualizer)
+                addMetadata("category", "General")
+                addMetadata("subcategory", "General")
+            })
         collected.map.values.forEach(reordered::put)
         collected.metadata?.let { reordered.addMetadata(HashMap(it)) }
 

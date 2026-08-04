@@ -38,6 +38,15 @@ class ArcticEmbedXs : AbstractInProcessEmbeddingModel(SAME_THREAD_EXECUTOR) {
     }
 }
 
+class MultiThreadedArcticEmbedXs : AbstractInProcessEmbeddingModel(null) {
+    private val model = loadFromJar(
+        "models/arctic-embed-xs/model_int8.onnx", "models/arctic-embed-xs/tokenizer.json",
+        PoolingMode.CLS
+    )
+
+    override fun model(): OnnxBertBiEncoder = model
+}
+
 object ArcticEmbedXsFactory : EmbeddingModelFactory {
     override fun create(): EmbeddingModel = ArcticEmbedXs()
 }

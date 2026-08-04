@@ -1,0 +1,145 @@
+package org.polyfrost.smartsearch.eval
+
+import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
+import org.polyfrost.oneconfig.internal.ui.search.SearchScope
+import kotlin.math.max
+import kotlin.random.Random
+
+/** One judged query: [text] should surface [relevant] when searched within [scopes]. */
+data class EvalQuery(
+    val family: String,
+    val text: String,
+    val relevant: Set<String>,
+    val scopes: Set<SearchScope>,
+)
+
+/** How many generated queries each family contributes. Enough to be stable, small enough to stay quick. */
+private const val PER_FAMILY = 250
+
+private const val SEED = 20260804L
+
+/**
+ * The judged query set. Families scored separately since they score different things.
+ */
+object QuerySet {
+
+    val queries: List<EvalQuery> by lazy {
+        buildList {
+            addAll(titleExact())
+            addAll(titlePrefix())
+            addAll(titleTypo())
+            addAll(titleSubset())
+            addAll(modQualified())
+            addAll(descriptions())
+            addAll(modNames())
+            addAll(keybinds())
+            addAll(CuratedQueries.queries)
+            addAll(ShortQueries.queries)
+        }
+    }
+
+    val byFamily: Map<String, List<EvalQuery>> by lazy { queries.groupBy { it.family } }
+
+    private val unambiguousOptions: List<SearchDocument<Unit>> by lazy {
+        EvalCorpus.documents.filter { doc ->
+            SearchScope.Options in doc.scopes &&
+                    doc.metadata.title?.lowercase()?.let { it !in EvalCorpus.ambiguousTitles } == true
+        }
+    }
+
+    private fun titleExact() = sample(unambiguousOptions, "title-exact").map { doc ->
+        EvalQuery("title-exact", doc.metadata.title!!, setOf(doc.id), setOf(SearchScope.Options))
+    }
+
+    /** Search-as-you-type */
+    private fun titlePrefix() = sample(unambiguousOptions.filter { it.metadata.title!!.length >= 8 }, "title-prefix")
+        .mapNotNull { doc ->
+            val title = doc.metadata.title!!
+            val cut = title.take(max(4, (title.length * 0.6).toInt())).trimEnd()
+            if (cut.isBlank()) null
+            else EvalQuery("title-prefix", cut, optionsTitledWithPrefix(cut), setOf(SearchScope.Options))
+        }
+
+    /** Every option whose title begins with [prefix]. */
+    private fun optionsTitledWithPrefix(prefix: String): Set<String> {
+        val lower = prefix.lowercase()
+        return EvalCorpus.documents
+            .filter { SearchScope.Options in it.scopes && it.metadata.title?.lowercase()?.startsWith(lower) == true }
+            .map { it.id }
+            .toSet()
+    }
+
+    /** One typo somewhere in the title. */
+    private fun titleTypo(): List<EvalQuery> {
+        val random = Random(SEED + "title-typo".hashCode())
+        return sample(unambiguousOptions, "title-typo").mapNotNull { doc ->
+            val title = doc.metadata.title!!
+            val words = title.split(" ").toMutableList()
+            val target = words.indices.filter { words[it].length >= 5 }.randomOrNull(random) ?: return@mapNotNull null
+            val word = words[target]
+            // Swap two adjacent letters: the most common real typo, and one edit away from the original.
+            val at = random.nextInt(1, word.length - 1)
+            words[target] = word.substring(0, at) + word[at + 1] + word[at] + word.substring(at + 2)
+            EvalQuery("title-typo", words.joinToString(" "), setOf(doc.id), setOf(SearchScope.Options))
+        }
+    }
+
+    /** The user remembers most of the name but not all of it. */
+    private fun titleSubset(): List<EvalQuery> {
+        val random = Random(SEED + "title-subset".hashCode())
+        return sample(unambiguousOptions.filter { it.metadata.title!!.split(" ").size >= 3 }, "title-subset")
+            .map { doc ->
+                val words = doc.metadata.title!!.split(" ").toMutableList()
+                words.removeAt(random.nextInt(words.size))
+                EvalQuery("title-subset", words.joinToString(" "), setOf(doc.id), setOf(SearchScope.Options))
+            }
+    }
+
+    /** "<mod> <option>"*/
+    private fun modQualified() = sample(unambiguousOptions.filter { it.metadata.modTitle != null }, "mod-qualified")
+        .map { doc ->
+            EvalQuery(
+                "mod-qualified",
+                "${doc.metadata.modTitle} ${doc.metadata.title}",
+                setOf(doc.id),
+                setOf(SearchScope.Options),
+            )
+        }
+
+    /**
+     * Seach for part of description
+     */
+    private fun descriptions(): List<EvalQuery> {
+        val random = Random(SEED + "description".hashCode())
+        val usable = unambiguousOptions.filter { doc ->
+            val description = doc.metadata.description ?: return@filter false
+            !description.startsWith("Internal ID:") &&
+                    description.length in 20..160 &&
+                    !description.contains('\n') &&
+                    !description.contains(doc.metadata.title!!, ignoreCase = true)
+        }
+        return sample(usable, "description").mapNotNull { doc ->
+            val words = doc.metadata.description!!.split(" ").filter { it.isNotBlank() }
+            if (words.size < 4) return@mapNotNull null
+            val window = max(3, words.size / 2)
+            val from = random.nextInt(0, words.size - window + 1)
+            val text = words.subList(from, from + window).joinToString(" ").trim(' ', '.', ',')
+            EvalQuery("description", text, setOf(doc.id), setOf(SearchScope.Options))
+        }
+    }
+
+    /** Looking for a mod by name on the mods screen. */
+    private fun modNames() = EvalCorpus.documents
+        .filter { SearchScope.Mods in it.scopes && it.metadata.title != null }
+        .map { EvalQuery("mod-name", it.metadata.title!!, setOf(it.id), setOf(SearchScope.Mods)) }
+
+    /** Looking for a keybind by name on the keybind screen. */
+    private fun keybinds() = EvalCorpus.documents
+        .filter { SearchScope.Keybinds in it.scopes && it.metadata.title != null }
+        .filter { it.metadata.title!!.lowercase() !in EvalCorpus.ambiguousTitles }
+        .map { EvalQuery("keybind", it.metadata.title!!, setOf(it.id), setOf(SearchScope.Keybinds)) }
+
+    /** Deterministic subsample */
+    private fun sample(documents: List<SearchDocument<Unit>>, salt: String): List<SearchDocument<Unit>> =
+        documents.shuffled(Random(SEED + salt.hashCode())).take(PER_FAMILY)
+}

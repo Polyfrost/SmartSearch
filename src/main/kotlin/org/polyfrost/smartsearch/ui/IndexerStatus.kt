@@ -18,6 +18,7 @@ import org.polyfrost.oneconfig.api.config.v1.Visualizer
 import org.polyfrost.oneconfig.internal.ui.components.Text
 import org.polyfrost.oneconfig.internal.ui.themes.LocalTheme
 import org.polyfrost.smartsearch.index.DataStore
+import org.polyfrost.smartsearch.index.SearchIndex
 import org.polyfrost.smartsearch.index.Embedder
 import org.polyfrost.smartsearch.model.ModelController
 
@@ -38,7 +39,7 @@ private data class IndexerSnapshot(
             val stats = DataStore.stats
             return IndexerSnapshot(
                 modelState = ModelController.state,
-                ingesting = DataStore.status == DataStore.Status.INGESTING,
+                ingesting = DataStore.status == SearchIndex.Status.INGESTING,
                 embedding = Embedder.isRunning(),
                 pending = Embedder.pending,
                 documents = stats.documents,

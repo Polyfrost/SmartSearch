@@ -33,7 +33,7 @@ object Embedder {
                     batch.add(toEmbed.poll())
                 }
                 DataStore.addEmbeddings(batch.mapNotNull {
-                    val str = buildEmbeddingString(it)
+                    val str = embeddingText(it)
                     if (str.isBlank()) return@mapNotNull null
                     it to model.embed(str).content()
                 }.toMap())
@@ -45,23 +45,23 @@ object Embedder {
         }
     }
 
-    private fun buildEmbeddingString(doc: SearchDocument<*>): String = buildString {
-        addNotNull(doc.metadata.title)
-        val categories = listOfNotNull(
-            // Filter out default "general", it doesn't provide any useful info
-            doc.metadata.category?.takeIf { it.lowercase() != "general" },
-            doc.metadata.distinctSubcategory?.takeIf { it.lowercase() != "general" }
-        )
-        addNotNull(categories.takeIf { it.isNotEmpty() }) { "Category: ${it.joinToString()}" }
-        addNotNull(doc.metadata.tags) { it.joinToString() }
-        addNotNull(doc.metadata.description)
-        addNotNull(doc.metadata.path)
-        addNotNull(doc.metadata.modTitle)
-    }.removeSuffix("\n")
-
     fun isRunning() = isRunning.get()
     val pending: Int get() = toEmbed.size
 }
+
+internal fun embeddingText(doc: SearchDocument<*>): String = buildString {
+    addNotNull(doc.metadata.title)
+    val categories = listOfNotNull(
+        // Filter out default "general", it doesn't provide any useful info
+        doc.metadata.category?.takeIf { it.lowercase() != "general" },
+        doc.metadata.distinctSubcategory?.takeIf { it.lowercase() != "general" }
+    )
+    addNotNull(categories.takeIf { it.isNotEmpty() }) { "Category: ${it.joinToString()}" }
+    addNotNull(doc.metadata.tags) { it.joinToString() }
+    addNotNull(doc.metadata.description)
+    addNotNull(doc.metadata.path)
+    addNotNull(doc.metadata.modTitle)
+}.removeSuffix("\n")
 
 private fun <T> StringBuilder.addNotNull(obj: T?, terminator: String? = "\n", strFunc: ((T) -> String)? = null) {
     if (obj == null) return

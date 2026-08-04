@@ -31,7 +31,6 @@ object ModelController {
             state = State.LOADED
             SmartSearchClient.LOGGER.info("Loaded embedding model in ${System.currentTimeMillis() - start}ms")
             onLoaded?.invoke(model)
-            SmartSearchClient.LOGGER.info(getQueryPrefix())
         } catch (e: UnsatisfiedLinkError) {
             state = State.NO_NATIVES
             SmartSearchClient.LOGGER.warn("Failed to load native libraries", e)
