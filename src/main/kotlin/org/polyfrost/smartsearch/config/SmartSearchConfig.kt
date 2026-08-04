@@ -11,8 +11,8 @@ import org.polyfrost.smartsearch.ui.IndexerStatusVisualizer
 import org.polyfrost.smartsearch.util.DocumentExporter
 
 object SmartSearchConfig : Config(
-    "polysearch.json",
-    "PolySearch",
+    "smartsearch.json",
+    "SmartSearch",
     Category.OTHER
 ) {
     @Switch(
