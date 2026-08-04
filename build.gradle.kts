@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "org.polyfrost"
-version = "1.0"
+version = "1.0.0+alpha1"
 
 repositories {
     mavenCentral()
@@ -94,8 +94,13 @@ sourceSets.main {
     }
 }
 
-tasks.named("processResources") {
+tasks.processResources {
     dependsOn(downloadEmbeddingModel)
+
+    inputs.property("version", project.version)
+    filesMatching("fabric.mod.json") {
+        expand("version" to project.version)
+    }
 }
 
 // Strip out Linux ARM natives, almost no consumer PCs run Linux on ARM right now

@@ -21,7 +21,8 @@ object SmartSearchProvider : SearchProvider {
     override val priority: Int = 1
 
     override fun isAvailable(): Boolean {
-        return ModelController.isReady() && DataStore.status == DataStore.Status.READY && !Embedder.isRunning()
+        return ModelController.isReady() && DataStore.status == DataStore.Status.READY
+                && !Embedder.isRunning() && SmartSearchConfig.enabled
     }
 
     override fun <T> searchGrouped(
