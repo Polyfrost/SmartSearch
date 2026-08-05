@@ -17,6 +17,7 @@ import kotlinx.coroutines.delay
 import org.polyfrost.oneconfig.api.config.v1.Visualizer
 import org.polyfrost.oneconfig.internal.ui.components.Text
 import org.polyfrost.oneconfig.internal.ui.themes.LocalTheme
+import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.index.DataStore
 import org.polyfrost.smartsearch.index.SearchIndex
 import org.polyfrost.smartsearch.index.Embedder
@@ -80,29 +81,50 @@ private fun IndexerStatus() {
     }
 }
 
-private val ERROR_COLOR = Color(0xFFE05252)
+private val WARN_COLOR = Color(0xFFFF9966)
+private val ERROR_COLOR = Color(0xFFCC3300)
 
-private fun IndexerSnapshot.headline(): String = when (modelState) {
-    ModelController.State.NOT_LOADED -> "Model not loaded"
-    ModelController.State.LOADING -> "Loading model..."
-    ModelController.State.ERRORED -> "Model failed to load"
-    ModelController.State.NO_NATIVES -> "Unsupported platform"
-    ModelController.State.LOADED -> when {
+private fun IndexerSnapshot.headline(): String {
+    // Only show model info if its enabled
+    if (SmartSearchConfig.enableSemantic) {
+        return when (modelState) {
+            ModelController.State.NOT_LOADED -> "Model not loaded"
+            ModelController.State.LOADING -> "Loading model..."
+            ModelController.State.ERRORED -> "Degraded: model failed to load"
+            ModelController.State.NO_NATIVES -> "Degraded: unsupported OS for model"
+            ModelController.State.LOADED -> when {
+                ingesting -> "Indexing..."
+                embedding -> "Embedding... ($pending left)"
+                else -> "Ready"
+            }
+        }
+    }
+    return when {
         ingesting -> "Indexing..."
-        embedding -> "Embedding... ($pending left)"
         else -> "Ready"
     }
 }
 
 private fun IndexerSnapshot.headlineColor(default: Color): Color = when (modelState) {
-    ModelController.State.ERRORED, ModelController.State.NO_NATIVES -> ERROR_COLOR
+    ModelController.State.ERRORED -> when {
+        SmartSearchConfig.enableSemantic -> ERROR_COLOR
+        else -> default
+    }
+    ModelController.State.NO_NATIVES -> when {
+        SmartSearchConfig.enableSemantic -> WARN_COLOR
+        else -> default
+    }
     else -> default
 }
 
-private fun IndexerSnapshot.detail(): String = when (modelState) {
-    ModelController.State.ERRORED -> "Disabled SmartSearch, see the logs for more details"
-    ModelController.State.NO_NATIVES -> "Disabled SmartSearch, no native libraries for this OS"
-    ModelController.State.NOT_LOADED, ModelController.State.LOADING, ModelController.State.LOADED -> indexLine()
+private fun IndexerSnapshot.detail(): String {
+    // Only show model info if its enabled
+    when (modelState) {
+        ModelController.State.ERRORED -> return "Failed to load the model, see the logs for more details"
+        ModelController.State.NO_NATIVES -> return "Failed to load the mode, no native libraries for this OS"
+        else -> {}
+    }
+    return indexLine()
 }
 
 private fun IndexerSnapshot.indexLine(): String =

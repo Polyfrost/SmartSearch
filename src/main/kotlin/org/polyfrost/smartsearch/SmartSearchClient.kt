@@ -18,17 +18,22 @@ import org.slf4j.LoggerFactory
 object SmartSearchClient {
     val LOGGER: Logger = LoggerFactory.getLogger(SmartSearchClient::class.java)
 
-    fun init() {
+    internal fun init() {
         SmartSearchConfig.preload()
         SearchProviderRegistry.registerSearchProvider(SmartSearchProvider)
+        if (SmartSearchConfig.enableSemantic) {
+            startModel()
+        }
+        EventManager.register(ShutdownEvent::class.java) { _ ->
+            DataStore.close()
+        }
+    }
 
+    internal fun startModel() {
         CoroutineScope(Dispatchers.Default).launch {
             ModelController.init(ArcticEmbedXsFactory) {
                 Embedder.startEmbeddings()
             }
-        }
-        EventManager.register(ShutdownEvent::class.java) { _ ->
-            DataStore.close()
         }
     }
 }

@@ -15,19 +15,13 @@ private val WORD_TERMINATOR = Regex("[\\s_\\-.]+")
 /** Every indexed text field, in the order their boosts are listed in [SearchParams]. */
 private val SEARCH_FIELDS = listOf("title", "description", "mod", "context", "tags")
 
-/**
- * Ranking, with nothing attached to the running game.
- *
- * [SmartSearchProvider] is the game-facing wrapper; everything that decides *order* lives here so the evaluation
- * harness scores exactly the code that ships.
- */
 object SearchEngine {
 
     /**
      * Ranked document ids for [query], best first, capped at [SearchParams.maxResults].
      *
-     * [embedQuery] turns the query into a vector, or returns null when no model is loaded - in which case the search
-     * degrades to lexical only rather than failing.
+     * [embedQuery] turns the query into a vector, or returns null when no model is loaded, then we fall back
+     * to lexical search
      */
     fun rank(
         index: SearchIndex,

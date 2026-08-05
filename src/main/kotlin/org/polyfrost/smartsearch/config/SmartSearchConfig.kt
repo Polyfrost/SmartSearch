@@ -7,6 +7,7 @@ import org.polyfrost.oneconfig.api.config.v1.annotations.Button
 import org.polyfrost.oneconfig.api.config.v1.annotations.Number
 import org.polyfrost.oneconfig.api.config.v1.annotations.Switch
 import org.polyfrost.oneconfig.internal.ui.search.SearchCorpus
+import org.polyfrost.smartsearch.SmartSearchClient
 import org.polyfrost.smartsearch.index.DataStore
 import org.polyfrost.smartsearch.search.SearchParams
 import org.polyfrost.smartsearch.ui.IndexerStatusVisualizer
@@ -18,9 +19,18 @@ object SmartSearchConfig : Config(
     Category.OTHER
 ) {
     @Switch(
-        title = "Enabled"
+        title = "Enabled",
+        description = "Whether you want to enable SmartSearch. " +
+                "If this is disabled you will use the default OneConfig search."
     )
     var enabled: Boolean = true
+
+    @Switch(
+        title = "Enable Semantic Search",
+        description = "Whether you want to enable semantic search, " +
+                "this activates an ML embedding model to help with searches."
+    )
+    var enableSemantic: Boolean = true
 
     @Button(
         title = "Clean database",
@@ -319,5 +329,12 @@ object SmartSearchConfig : Config(
         addDependency("maxKnnWeightWords", "overwriteDefault")
         addDependency("minKnnWeight", "overwriteDefault")
         addDependency("maxKnnWeight", "overwriteDefault")
+
+        addCallback<Boolean>("enableSemantic") { value ->
+            if (value) {
+                SmartSearchClient.startModel()
+            }
+            false
+        }
     }
 }

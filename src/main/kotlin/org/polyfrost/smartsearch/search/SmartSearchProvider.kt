@@ -14,8 +14,7 @@ object SmartSearchProvider : SearchProvider {
     override val priority: Int = 1
 
     override fun isAvailable(): Boolean {
-        return ModelController.isReady() && DataStore.status == SearchIndex.Status.READY
-                && !Embedder.isRunning() && SmartSearchConfig.enabled
+        return DataStore.status == SearchIndex.Status.READY && SmartSearchConfig.enabled
     }
 
     override fun <T> searchGrouped(
@@ -44,7 +43,7 @@ object SmartSearchProvider : SearchProvider {
 
     /** The query as a vector, or null if the model isn't available */
     private fun embed(query: String): FloatArray? {
-        if (!ModelController.isReady()) return null
+        if (!ModelController.isReady() || !SmartSearchConfig.enableSemantic) return null
         return runCatching {
             ModelController.getModel().embed(
                 ModelController.getQueryPrefix() + query

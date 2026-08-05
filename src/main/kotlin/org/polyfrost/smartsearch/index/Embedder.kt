@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
 import org.polyfrost.smartsearch.SmartSearchClient
+import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.model.ModelController
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -21,7 +22,11 @@ object Embedder {
     }
 
     fun startEmbeddings() {
-        if (toEmbed.isEmpty() || !ModelController.isReady() || isRunning.getAndSet(true)) return
+        if (toEmbed.isEmpty() || !ModelController.isReady()
+            || !SmartSearchConfig.enableSemantic || isRunning.getAndSet(true)
+        ) {
+            return
+        }
         SmartSearchClient.LOGGER.info("Starting embedding of ${toEmbed.size} documents...")
         val start = System.currentTimeMillis()
 
