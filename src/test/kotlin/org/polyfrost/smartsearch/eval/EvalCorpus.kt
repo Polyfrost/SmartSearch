@@ -50,6 +50,7 @@ object EvalCorpus {
         subcategory = string("subcategory"),
         tags = get("tags")?.takeIf { it.isJsonArray }?.asJsonArray?.map { it.asString }.orEmpty(),
         modTitle = string("modTitle"),
+        modDescription = string("modDescription"),
         path = string("path"),
     )
 

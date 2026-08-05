@@ -33,7 +33,7 @@ dependencies {
     minecraft("com.mojang:minecraft:26.2")
     implementation("net.fabricmc:fabric-loader:0.19.3")
 
-    val oneConfigVersion = "1.0.13+SEARCH2"
+    val oneConfigVersion = "1.1.2+SEARCH"
     runtimeOnly("org.polyfrost.oneconfig:26.2-fabric:$oneConfigVersion")
     for (module in listOf("config", "config-impl", "events", "internal")) {
         implementation("org.polyfrost.oneconfig:$module:$oneConfigVersion")

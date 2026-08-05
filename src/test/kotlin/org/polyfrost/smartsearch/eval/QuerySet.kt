@@ -2,6 +2,7 @@ package org.polyfrost.smartsearch.eval
 
 import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
 import org.polyfrost.oneconfig.internal.ui.search.SearchScope
+import java.security.MessageDigest
 import kotlin.math.max
 import kotlin.random.Random
 
@@ -13,8 +14,11 @@ data class EvalQuery(
     val scopes: Set<SearchScope>,
 )
 
-/** How many generated queries each family contributes. Enough to be stable, small enough to stay quick. */
-private const val PER_FAMILY = 250
+/**
+ * How many generated queries each mod contributes per family.
+ * Prevents one mod dominating in the benchmark
+ */
+private const val PER_MOD = 25
 
 private const val SEED = 20260804L
 
@@ -167,7 +171,17 @@ object QuerySet {
         .filter { it.metadata.title!!.lowercase() !in EvalCorpus.ambiguousTitles }
         .map { EvalQuery("keybind", it.metadata.title!!, setOf(it.id), setOf(SearchScope.Keybinds)) }
 
-    /** Deterministic subsample */
+    /**
+     * Take a subsample of queries per mod
+     */
     private fun sample(documents: List<SearchDocument<Unit>>, salt: String): List<SearchDocument<Unit>> =
-        documents.shuffled(Random(SEED + salt.hashCode())).take(PER_FAMILY)
+        documents.groupBy { it.metadata.modTitle }
+            .values
+            .flatMap { forMod -> forMod.sortedBy { sampleKey(salt, it.id) }.take(PER_MOD) }
+
+    /** Stable pseudo-random ordering, independent of the rest of the corpus. */
+    private fun sampleKey(salt: String, id: String): Long {
+        val digest = MessageDigest.getInstance("MD5").digest("$SEED:$salt:$id".toByteArray())
+        return (0 until 8).fold(0L) { acc, i -> (acc shl 8) or (digest[i].toLong() and 0xFF) }
+    }
 }

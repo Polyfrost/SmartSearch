@@ -29,7 +29,7 @@ data class SearchParams(
     val lexicalFuzzyPrefixLength: Int = 0,
     val lexicalPrefixExpansions: Int = 64,
     val maxKnnResults: Int = 100,
-    val minKnnScore: Float = 0.62f,
+    val minKnnScore: Float = 0.8f,
     val knnWeightScalingStartWords: Int = 2,
     val maxKnnWeightWords: Int = 6,
     val minKnnWeight: Float = 0.25f,

@@ -71,6 +71,7 @@ internal fun embeddingText(doc: SearchDocument<*>): String = buildString {
     addNotNull(doc.metadata.tags.takeIf { it.isNotEmpty() }) { it.joinToString() }
     addNotNull(doc.metadata.description?.takeUnless { skippedDescriptionPrefixes.any { pre -> it.startsWith(pre) } })
     addNotNull(doc.metadata.modTitle)
+    addNotNull(doc.metadata.modDescription)
 }.removeSuffix("\n")
 
 private fun <T> StringBuilder.addNotNull(obj: T?, terminator: String? = "\n", strFunc: ((T) -> String)? = null) {

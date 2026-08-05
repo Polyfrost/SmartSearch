@@ -28,16 +28,7 @@ class ParamSweepTest {
             appendLine(scoreLine("baseline", base))
             appendLine()
 
-            sweep("rankFusionDampening", listOf(1f, 10f, 30f, 60f, 120f)) { base.copy(rankFusionDampening = it) }
-            sweep("minKnnScore", listOf(0.0f, 0.5f, 0.62f, 0.7f, 0.8f)) { base.copy(minKnnScore = it) }
-            sweep("maxKnnWeight", listOf(0.5f, 1.0f, 1.4f, 2.0f, 3.0f)) { base.copy(maxKnnWeight = it) }
-            sweep("minKnnWeight", listOf(0.0f, 0.5f, 1.0f, 1.5f)) { base.copy(minKnnWeight = it) }
-            sweep("lexicalTitleBoost", listOf(1f, 2f, 3f)) { base.copy(lexicalTitleBoost = it) }
-            sweep("lexicalExactBoost", listOf(1f, 2f, 3f)) { base.copy(lexicalExactBoost = it) }
-            sweep("lexicalMinFuzzyLength", listOf(3, 4, 6, 20)) { base.copy(lexicalMinFuzzyLength = it) }
-            sweep("candidatePool", listOf(20, 50, 100, 200)) {
-                base.copy(maxLexicalResults = it, maxKnnResults = it)
-            }
+            sweep("minKnnScore", listOf(0.73f, 0.74f, 0.75f, 0.76f, 0.77f, 0.78f, 0.79f, 0.8f)) { base.copy(minKnnScore = it) }
         }
 
         println(report)
