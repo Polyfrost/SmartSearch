@@ -28,12 +28,16 @@ data class SearchParams(
     val lexicalMinFuzzyLength: Int = 4,
     val lexicalFuzzyPrefixLength: Int = 0,
     val lexicalPrefixExpansions: Int = 64,
+    /** Lexical hits below this are dropped before fusion */
+    val lexicalScoreFloor: Float = 0.4f,
     val maxKnnResults: Int = 100,
     val minKnnScore: Float = 0.8f,
     val knnWeightScalingStartWords: Int = 2,
     val maxKnnWeightWords: Int = 6,
     val minKnnWeight: Float = 0.25f,
     val maxKnnWeight: Float = 2f,
+    /** Fused results below this are dropped. */
+    val resultScoreFloor: Float = 0.4f,
 ) {
     companion object {
         val DEFAULT = SearchParams()

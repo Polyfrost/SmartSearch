@@ -6,7 +6,7 @@
   "environment": "*",
   "depends": {
     "java": ">=21",
-    "oneconfigv1": "*"
+    "oneconfigv1": "1.1.2+SEARCH"
   },
   "authors": [
     "Polyfrost",

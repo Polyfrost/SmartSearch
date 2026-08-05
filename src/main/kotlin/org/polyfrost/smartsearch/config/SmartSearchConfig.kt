@@ -55,6 +55,8 @@ object SmartSearchConfig : Config(
             lexicalMinFuzzyLength = lexicalMinFuzzyLength,
             lexicalFuzzyPrefixLength = lexicalFuzzyPrefixLength,
             lexicalPrefixExpansions = lexicalPrefixExpansions,
+            lexicalScoreFloor = lexicalScoreFloor,
+            resultScoreFloor = resultScoreFloor,
             maxKnnResults = maxKnnResults,
             minKnnScore = minKnnScore,
             knnWeightScalingStartWords = KnnWeightScalingStartWords,
@@ -89,6 +91,16 @@ object SmartSearchConfig : Config(
         max = 200f
     )
     var maxResults: Int = SearchParams.DEFAULT.maxResults
+
+    @Number(
+        title = "Result Floor",
+        description = "Drop results that have a score below this value, after fusing lexical and semantic values.",
+        category = "Advanced",
+        subcategory = "General",
+        min = 0f,
+        max = 1f,
+    )
+    var resultScoreFloor: Float = SearchParams.DEFAULT.resultScoreFloor
 
     @Number(
         title = "Maximum Lexical Results",
@@ -226,6 +238,16 @@ object SmartSearchConfig : Config(
     var lexicalPrefixExpansions: Int = SearchParams.DEFAULT.lexicalPrefixExpansions
 
     @Number(
+        title = "Lexical Result Floor",
+        description = "Drop matches that are below this score, before fusing with semantic results.",
+        category = "Advanced",
+        subcategory = "Lexical",
+        min = 0f,
+        max = 1f,
+    )
+    var lexicalScoreFloor: Float = SearchParams.DEFAULT.lexicalScoreFloor
+
+    @Number(
         title = "Maximum Semantic Results",
         description = "Amount of results the semantic (KNN) vector search pulls before fusion.",
         category = "Advanced",
@@ -309,6 +331,7 @@ object SmartSearchConfig : Config(
     }
 
     init {
+        addDependency("resultScoreFloor", "overwriteDefault")
         addDependency("maxResults", "overwriteDefault")
         addDependency("maxLexicalResults", "overwriteDefault")
         addDependency("lexicalTitleBoost", "overwriteDefault")
@@ -323,6 +346,7 @@ object SmartSearchConfig : Config(
         addDependency("lexicalMinFuzzyLength", "overwriteDefault")
         addDependency("lexicalFuzzyPrefixLength", "overwriteDefault")
         addDependency("lexicalPrefixExpansions", "overwriteDefault")
+        addDependency("lexicalScoreFloor", "overwriteDefault")
         addDependency("maxKnnResults", "overwriteDefault")
         addDependency("minKnnScore", "overwriteDefault")
         addDependency("KnnWeightScalingStartWords", "overwriteDefault")

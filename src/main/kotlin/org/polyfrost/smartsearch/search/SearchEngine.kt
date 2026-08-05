@@ -16,6 +16,10 @@ private val WORD_TERMINATOR = Regex("[\\s_\\-.]+")
 private val SEARCH_FIELDS = listOf("title", "description", "mod", "context", "tags")
 
 object SearchEngine {
+    /**
+     * One side of the search before fusing, [zero] notes the zero point of this arm for scoring
+     */
+    private class Arm(val hits: List<ScoreDoc>, val weight: Double, val zero: Float)
 
     /**
      * Ranked document ids for [query], best first, capped at [SearchParams.maxResults].
@@ -39,7 +43,7 @@ object SearchEngine {
                     filtered(it, scopeFilter),
                     params.maxLexicalResults
                 ).scoreDocs.asList()
-            }.orEmpty()
+            }.orEmpty().aboveFloor(params.lexicalScoreFloor)
 
             val semantic = embedQuery(query)?.let {
                 searcher.search(
@@ -50,22 +54,37 @@ object SearchEngine {
             }.orEmpty()
 
             val storedFields = reader.storedFields()
-            fuse(params, lexical to 1.0, semantic to semanticWeight(query, params)).mapNotNull { doc ->
+            fuse(
+                params,
+                Arm(lexical, weight = 1.0, zero = 0f),
+                Arm(semantic, weight = semanticWeight(query, params), zero = params.minKnnScore),
+            ).mapNotNull { doc ->
                 storedFields.document(doc, setOf("id")).get("id")
             }
         }
     }
 
+    /**
+     * Drop hits scoring less then [floor]
+     */
+    private fun List<ScoreDoc>.aboveFloor(floor: Float): List<ScoreDoc> {
+        if (floor <= 0f || isEmpty()) return this
+        val cutoff = first().score * floor
+        return takeWhile { it.score >= cutoff }
+    }
+
     /** Merge the arms into one ranking, with a weight assigned to each list. */
-    private fun fuse(params: SearchParams, vararg arms: Pair<List<ScoreDoc>, Double>): List<Int> {
+    private fun fuse(params: SearchParams, vararg arms: Arm): List<Int> {
         val scores = HashMap<Int, Double>()
-        for ((hits, weight) in arms) {
-            val contribution = contributions(params, hits)
-            hits.forEachIndexed { rank, hit ->
-                scores.merge(hit.doc, weight * contribution[rank], Double::plus)
+        for (arm in arms) {
+            val contribution = contributions(params, arm)
+            arm.hits.forEachIndexed { rank, hit ->
+                scores.merge(hit.doc, arm.weight * contribution[rank], Double::plus)
             }
         }
-        return scores.entries.sortedByDescending { it.value }.take(params.maxResults).map { it.key }
+        val ranked = scores.entries.sortedByDescending { it.value }.take(params.maxResults)
+        val cutoff = (ranked.firstOrNull()?.value ?: 0.0) * params.resultScoreFloor
+        return ranked.takeWhile { it.value >= cutoff }.map { it.key }
     }
 
     /**
@@ -73,17 +92,15 @@ object SearchEngine {
      *
      * [FusionMode.SCORE] normalises the score across the hits in the arm
      */
-    private fun contributions(params: SearchParams, hits: List<ScoreDoc>): DoubleArray {
+    private fun contributions(params: SearchParams, arm: Arm): DoubleArray {
+        val hits = arm.hits
         if (params.fusion == FusionMode.RANK) {
             return DoubleArray(hits.size) { 1.0 / (params.rankFusionDampening + it + 1) }
         }
 
-        val best = hits.firstOrNull()?.score ?: 0f
-        val worst = hits.lastOrNull()?.score ?: 0f
-        val span = best - worst
-        // One hit, or a run of identical scores: nothing to tell them apart by, so they all count the same.
+        val span = (hits.firstOrNull()?.score ?: 0f) - arm.zero
         if (span <= 1e-6f) return DoubleArray(hits.size) { 1.0 }
-        return DoubleArray(hits.size) { ((hits[it].score - worst) / span).toDouble() }
+        return DoubleArray(hits.size) { ((hits[it].score - arm.zero) / span).toDouble().coerceAtLeast(0.0) }
     }
 
     /**
@@ -130,19 +147,19 @@ object SearchEngine {
         // The user is still typing unless they ended on a separator, so the last token is treated as a prefix.
         val lastIsPartial = queryText.isNotEmpty() && !queryText.last().isWhitespace()
 
-        val builder = BooleanQuery.Builder()
+        val words = BooleanQuery.Builder()
         terms.forEachIndexed { index, term ->
             val partial = lastIsPartial && index == terms.lastIndex
-            builder.add(
+            words.add(
                 bestField(params, fields) { field -> termClause(field, term, partial, params) },
                 BooleanClause.Occur.SHOULD,
             )
         }
+
+        val builder = BooleanQuery.Builder().add(words.build(), BooleanClause.Occur.MUST)
         bestFieldOrNull(params, fields) { field -> phraseClause(field, terms, lastIsPartial, params) }
             ?.let { builder.add(it, BooleanClause.Occur.SHOULD) }
         titleStartClause(queryText, params)?.let { builder.add(it, BooleanClause.Occur.SHOULD) }
-
-        builder.setMinimumNumberShouldMatch(1)
         return builder.build()
     }
 
