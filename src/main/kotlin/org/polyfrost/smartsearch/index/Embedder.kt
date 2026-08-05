@@ -49,6 +49,12 @@ object Embedder {
     val pending: Int get() = toEmbed.size
 }
 
+/**
+ * Skip including descriptions starting with this, skips the sound tweaks descriptions for example.
+ * This just dilutes the embedding
+ */
+private val skippedDescriptionPrefixes = listOf("Internal ID:")
+
 internal fun embeddingText(doc: SearchDocument<*>): String = buildString {
     addNotNull(doc.metadata.title)
     val categories = listOfNotNull(
@@ -56,10 +62,9 @@ internal fun embeddingText(doc: SearchDocument<*>): String = buildString {
         doc.metadata.category?.takeIf { it.lowercase() != "general" },
         doc.metadata.distinctSubcategory?.takeIf { it.lowercase() != "general" }
     )
-    addNotNull(categories.takeIf { it.isNotEmpty() }) { "Category: ${it.joinToString()}" }
-    addNotNull(doc.metadata.tags) { it.joinToString() }
-    addNotNull(doc.metadata.description)
-    addNotNull(doc.metadata.path)
+    addNotNull(categories.takeIf { it.isNotEmpty() }) { it.joinToString() }
+    addNotNull(doc.metadata.tags.takeIf { it.isNotEmpty() }) { it.joinToString() }
+    addNotNull(doc.metadata.description?.takeUnless { skippedDescriptionPrefixes.any { pre -> it.startsWith(pre) } })
     addNotNull(doc.metadata.modTitle)
 }.removeSuffix("\n")
 

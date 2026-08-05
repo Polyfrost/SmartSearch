@@ -32,13 +32,12 @@ object QuerySet {
             addAll(modQualified())
             addAll(descriptions())
             addAll(modNames())
+            addAll(modNameParts())
             addAll(keybinds())
             addAll(CuratedQueries.queries)
             addAll(ShortQueries.queries)
         }
     }
-
-    val byFamily: Map<String, List<EvalQuery>> by lazy { queries.groupBy { it.family } }
 
     private val unambiguousOptions: List<SearchDocument<Unit>> by lazy {
         EvalCorpus.documents.filter { doc ->
@@ -132,6 +131,35 @@ object QuerySet {
     private fun modNames() = EvalCorpus.documents
         .filter { SearchScope.Mods in it.scopes && it.metadata.title != null }
         .map { EvalQuery("mod-name", it.metadata.title!!, setOf(it.id), setOf(SearchScope.Mods)) }
+
+    /**
+     * One word out of a mod's name, when the name is made of several.
+     * Like "particles" out of "OverflowParticles"
+     */
+    private fun modNameParts(): List<EvalQuery> {
+        val relevantByPart = HashMap<String, MutableSet<String>>()
+        EvalCorpus.documents
+            .filter { SearchScope.Mods in it.scopes && it.metadata.title != null }
+            .forEach { mod ->
+                nameParts(mod.metadata.title!!).forEach { part ->
+                    relevantByPart.getOrPut(part) { mutableSetOf() }.add(mod.id)
+                }
+            }
+        return relevantByPart.entries.sortedBy { it.key }
+            .map { (part, ids) -> EvalQuery("mod-part", part, ids, setOf(SearchScope.Mods)) }
+    }
+
+    /**
+     * Split parts out of a name
+     */
+    private fun nameParts(title: String): List<String> {
+        val parts = title.split(Regex("[^A-Za-z0-9]+"))
+            .flatMap { it.split(Regex("(?<=[a-z0-9])(?=[A-Z])")) }
+            .map { it.lowercase() }
+            .filter { it.length >= 4 }
+            .distinct()
+        return if (parts.size < 2) emptyList() else parts
+    }
 
     /** Looking for a keybind by name on the keybind screen. */
     private fun keybinds() = EvalCorpus.documents

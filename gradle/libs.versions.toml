@@ -17,6 +17,7 @@ deep_java_library = { module = "ai.djl:api", version.ref = "deep_java_library" }
 deep_java_library_tokenizer = { module = "ai.djl.huggingface:tokenizers", version.ref = "deep_java_library" }
 
 lucene_core = { module = "org.apache.lucene:lucene-core", version.ref = "lucene" }
+lucene_analysis_common = { module = "org.apache.lucene:lucene-analysis-common", version.ref = "lucene" }
 
 [bundles]
 embedding = [
@@ -28,5 +29,6 @@ embedding = [
 ]
 
 database = [
-    "lucene_core"
+    "lucene_core",
+    "lucene_analysis_common"
 ]

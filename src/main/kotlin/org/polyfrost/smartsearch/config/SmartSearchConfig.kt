@@ -30,13 +30,21 @@ object SmartSearchConfig : Config(
     }
 
     val params: SearchParams
-        get() = SearchParams(
+        get() = if (!overwriteDefault) SearchParams.DEFAULT else SearchParams(
             maxResults = maxResults,
-            rankFusionDampening = rankFusionDampening,
             maxLexicalResults = maxLexicalResults,
             lexicalTitleBoost = lexicalTitleBoost,
+            lexicalModBoost = lexicalModBoost,
+            lexicalContextBoost = lexicalContextBoost,
+            lexicalTagBoost = lexicalTagBoost,
+            lexicalFieldTieBreak = lexicalFieldTieBreak,
+            lexicalTitleStartBoost = lexicalTitleStartBoost,
             lexicalExactBoost = lexicalExactBoost,
+            lexicalPhraseBoost = lexicalPhraseBoost,
+            lexicalPhraseSlop = lexicalPhraseSlop,
             lexicalMinFuzzyLength = lexicalMinFuzzyLength,
+            lexicalFuzzyPrefixLength = lexicalFuzzyPrefixLength,
+            lexicalPrefixExpansions = lexicalPrefixExpansions,
             maxKnnResults = maxKnnResults,
             minKnnScore = minKnnScore,
             knnWeightScalingStartWords = KnnWeightScalingStartWords,
@@ -44,6 +52,23 @@ object SmartSearchConfig : Config(
             minKnnWeight = minKnnWeight,
             maxKnnWeight = maxKnnWeight,
         )
+
+    @Switch(
+        title = "Overwrite Default Search Settings",
+        description = "Overwrite the search tuning settings, only enable this if you know what you are doing.",
+        category = "Advanced",
+        subcategory = "General",
+    )
+    var overwriteDefault: Boolean = false
+
+    @Button(
+        title = "Export Search Documents",
+        description = "Export all currently loaded search documents, useful for benchmarking.",
+        category = "Advanced",
+    )
+    fun exportSearchDocuments() {
+        DocumentExporter.export()
+    }
 
     @Number(
         title = "Maximum Results",
@@ -53,18 +78,7 @@ object SmartSearchConfig : Config(
         min = 1f,
         max = 200f
     )
-    var maxResults: Int = 20
-
-    @Number(
-        title = "Rank fusion dampening",
-        description = "The amount of dampening applied when merging results, higher values flattens the ranking, " +
-                "lower lets top results dominate.",
-        category = "Advanced",
-        subcategory = "General",
-        min = 1f,
-        max = 200f
-    )
-    var rankFusionDampening = 60f
+    var maxResults: Int = SearchParams.DEFAULT.maxResults
 
     @Number(
         title = "Maximum Lexical Results",
@@ -74,7 +88,7 @@ object SmartSearchConfig : Config(
         min = 1f,
         max = 200f
     )
-    var maxLexicalResults: Int = 100
+    var maxLexicalResults: Int = SearchParams.DEFAULT.maxLexicalResults
 
     @Number(
         title = "Lexical Title Boost",
@@ -84,17 +98,91 @@ object SmartSearchConfig : Config(
         min = 1f,
         max = 3f
     )
-    var lexicalTitleBoost: Float = 2f
+    var lexicalTitleBoost: Float = SearchParams.DEFAULT.lexicalTitleBoost
+
+    @Number(
+        title = "Lexical Mod Name Boost",
+        description = "Boost in lexical search if the match is found in the name of the mod the option belongs to",
+        category = "Advanced",
+        subcategory = "Lexical",
+        min = 0f,
+        max = 3f
+    )
+    var lexicalModBoost: Float = SearchParams.DEFAULT.lexicalModBoost
+
+    @Number(
+        title = "Lexical Category Boost",
+        description = "Boost in lexical search if the match is found in the option's category, subcategory or page",
+        category = "Advanced",
+        subcategory = "Lexical",
+        min = 0f,
+        max = 3f
+    )
+    var lexicalContextBoost: Float = SearchParams.DEFAULT.lexicalContextBoost
+
+    @Number(
+        title = "Lexical Tag Boost",
+        description = "Boost in lexical search if the match is found in the option's tags",
+        category = "Advanced",
+        subcategory = "Lexical",
+        min = 0f,
+        max = 3f
+    )
+    var lexicalTagBoost: Float = SearchParams.DEFAULT.lexicalTagBoost
+
+    @Number(
+        title = "Lexical Field Agreement",
+        description = "How much a word matching in several fields at once counts for. At 0 a word is scored against " +
+                "whichever field suits it best, so matching in the title, the mod name and the category is worth " +
+                "no more than matching in the title alone.",
+        category = "Advanced",
+        subcategory = "Lexical",
+        min = 0f,
+        max = 1f
+    )
+    var lexicalFieldTieBreak: Float = SearchParams.DEFAULT.lexicalFieldTieBreak
+
+    @Number(
+        title = "Lexical Title Start Boost",
+        description = "How much to boost an option if the word you are currently typing in the query matches the title.",
+        category = "Advanced",
+        subcategory = "Lexical",
+        min = 0f,
+        max = 10f
+    )
+    var lexicalTitleStartBoost: Float = SearchParams.DEFAULT.lexicalTitleStartBoost
 
     @Number(
         title = "Lexical Exact Match Boost",
-        description = "Boost in lexical search if there is an exact match",
+        description = "Boost in lexical search if there is an exact match. Below 1 because the fuzzy and prefix " +
+                "matches already score the exact word too, so it would otherwise be counted several times over.",
         category = "Advanced",
         subcategory = "Lexical",
-        min = 1f,
+        min = 0f,
         max = 3f
     )
-    var lexicalExactBoost: Float = 2f
+    var lexicalExactBoost: Float = SearchParams.DEFAULT.lexicalExactBoost
+
+    @Number(
+        title = "Lexical Phrase Boost",
+        description = "Boost in lexical search when the searched words appear together, in order, rather than " +
+                "scattered across the option",
+        category = "Advanced",
+        subcategory = "Lexical",
+        min = 0f,
+        max = 10f
+    )
+    var lexicalPhraseBoost: Float = SearchParams.DEFAULT.lexicalPhraseBoost
+
+    @Number(
+        title = "Lexical Phrase Slop",
+        description = "How many words may sit between the searched words and still count as a phrase",
+        category = "Advanced",
+        subcategory = "Lexical",
+        min = 0f,
+        max = 8f
+    )
+    var lexicalPhraseSlop: Int = SearchParams.DEFAULT.lexicalPhraseSlop
 
     @Number(
         title = "Minimum Length for Fuzzy Search",
@@ -105,7 +193,27 @@ object SmartSearchConfig : Config(
         min = 1f,
         max = 20f
     )
-    var lexicalMinFuzzyLength: Int = 4
+    var lexicalMinFuzzyLength: Int = SearchParams.DEFAULT.lexicalMinFuzzyLength
+
+    @Number(
+        title = "Fuzzy Search Fixed Prefix",
+        description = "How many leading characters a fuzzy match must get right.",
+        category = "Advanced",
+        subcategory = "Lexical",
+        min = 0f,
+        max = 4f
+    )
+    var lexicalFuzzyPrefixLength: Int = SearchParams.DEFAULT.lexicalFuzzyPrefixLength
+
+    @Number(
+        title = "Fuzzy Search Prefix Expansions",
+        description = "In fuzzy search how many prefix completions are tried to evaluate and score.",
+        category = "Advanced",
+        subcategory = "Lexical",
+        min = 0f,
+        max = 4f
+    )
+    var lexicalPrefixExpansions: Int = SearchParams.DEFAULT.lexicalPrefixExpansions
 
     @Number(
         title = "Maximum Semantic Results",
@@ -115,7 +223,7 @@ object SmartSearchConfig : Config(
         min = 1f,
         max = 200f
     )
-    var maxKnnResults: Int = 100
+    var maxKnnResults: Int = SearchParams.DEFAULT.maxKnnResults
 
     @Number(
         title = "Minimum Semantic Score",
@@ -125,7 +233,7 @@ object SmartSearchConfig : Config(
         min = 0f,
         max = 1f,
     )
-    var minKnnScore: Float = 0.62f
+    var minKnnScore: Float = SearchParams.DEFAULT.minKnnScore
 
     @Number(
         title = "Words before weight scaling starts",
@@ -135,7 +243,7 @@ object SmartSearchConfig : Config(
         min = 1f,
         max = 10f,
     )
-    var KnnWeightScalingStartWords: Int = 2
+    var KnnWeightScalingStartWords: Int = SearchParams.DEFAULT.knnWeightScalingStartWords
 
     @Number(
         title = "Words for maximum semantic weight",
@@ -146,37 +254,27 @@ object SmartSearchConfig : Config(
         min = 1f,
         max = 10f,
     )
-    var maxKnnWeightWords: Int = 5
+    var maxKnnWeightWords: Int = SearchParams.DEFAULT.maxKnnWeightWords
 
     @Number(
         title = "Minimum Semantic Weight",
-        description = "The minimum weight attached to semantic search results.",
+        description = "The weight attached to semantic search results for a short query.",
         category = "Advanced",
         subcategory = "Semantic",
         min = 0f,
         max = 3f,
     )
-    var minKnnWeight: Float = 1f
+    var minKnnWeight: Float = SearchParams.DEFAULT.minKnnWeight
 
     @Number(
         title = "Maximum Semantic Weight",
-        description = "The minimum weight attached to semantic search results.",
+        description = "The weight attached to semantic search results for a long query.",
         category = "Advanced",
         subcategory = "Semantic",
         min = 0f,
         max = 3f,
     )
-    var maxKnnWeight: Float = 1.4f
-
-    @Button(
-        title = "Export Search Documents",
-        description = "Export all currently loaded search documents, useful for benchmarking.",
-        category = "Advanced",
-        subcategory = "Misc"
-    )
-    fun exportSearchDocuments() {
-        DocumentExporter.export()
-    }
+    var maxKnnWeight: Float = SearchParams.DEFAULT.maxKnnWeight
 
     override fun makeTree(): Tree {
         // Put at the top
@@ -198,5 +296,28 @@ object SmartSearchConfig : Config(
         collected.metadata?.let { reordered.addMetadata(HashMap(it)) }
 
         return reordered
+    }
+
+    init {
+        addDependency("maxResults", "overwriteDefault")
+        addDependency("maxLexicalResults", "overwriteDefault")
+        addDependency("lexicalTitleBoost", "overwriteDefault")
+        addDependency("lexicalModBoost", "overwriteDefault")
+        addDependency("lexicalContextBoost", "overwriteDefault")
+        addDependency("lexicalTagBoost", "overwriteDefault")
+        addDependency("lexicalFieldTieBreak", "overwriteDefault")
+        addDependency("lexicalTitleStartBoost", "overwriteDefault")
+        addDependency("lexicalExactBoost", "overwriteDefault")
+        addDependency("lexicalPhraseBoost", "overwriteDefault")
+        addDependency("lexicalPhraseSlop", "overwriteDefault")
+        addDependency("lexicalMinFuzzyLength", "overwriteDefault")
+        addDependency("lexicalFuzzyPrefixLength", "overwriteDefault")
+        addDependency("lexicalPrefixExpansions", "overwriteDefault")
+        addDependency("maxKnnResults", "overwriteDefault")
+        addDependency("minKnnScore", "overwriteDefault")
+        addDependency("KnnWeightScalingStartWords", "overwriteDefault")
+        addDependency("maxKnnWeightWords", "overwriteDefault")
+        addDependency("minKnnWeight", "overwriteDefault")
+        addDependency("maxKnnWeight", "overwriteDefault")
     }
 }

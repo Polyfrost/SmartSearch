@@ -36,7 +36,7 @@ class SearchEvalTest {
             appendLine()
             append(SearchEvaluation.report(results))
             appendLine()
-            listOf("title-exact", "title-subset", "mod-qualified", "description", "curated", "curated-short").forEach {
+            listOf("title-exact", "title-subset", "mod-qualified", "description", "mod-part", "curated", "curated-short").forEach {
                 appendLine(SearchEvaluation.failures(results, it))
             }
         }

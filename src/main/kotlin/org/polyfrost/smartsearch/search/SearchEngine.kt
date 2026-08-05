@@ -7,9 +7,13 @@ import org.apache.lucene.index.Term
 import org.apache.lucene.search.*
 import org.polyfrost.oneconfig.internal.ui.search.SearchScope
 import org.polyfrost.smartsearch.index.SearchIndex
+import org.polyfrost.smartsearch.index.titleKey
 import org.polyfrost.smartsearch.index.toKey
 
 private val WORD_TERMINATOR = Regex("[\\s_\\-.]+")
+
+/** Every indexed text field, in the order their boosts are listed in [SearchParams]. */
+private val SEARCH_FIELDS = listOf("title", "description", "mod", "context", "tags")
 
 /**
  * Ranking, with nothing attached to the running game.
@@ -58,21 +62,34 @@ object SearchEngine {
         }
     }
 
-    /**
-     * Merge using reciprocal rank fusion, with a weight assigned to each list
-     */
-    private fun fuse(params: SearchParams, vararg lists: Pair<List<ScoreDoc>, Double>): List<Int> {
+    /** Merge the arms into one ranking, with a weight assigned to each list. */
+    private fun fuse(params: SearchParams, vararg arms: Pair<List<ScoreDoc>, Double>): List<Int> {
         val scores = HashMap<Int, Double>()
-        for ((list, weight) in lists) {
-            list.forEachIndexed { rank, hit ->
-                scores.merge(
-                    hit.doc,
-                    weight / (params.rankFusionDampening + rank + 1),
-                    Double::plus
-                )
+        for ((hits, weight) in arms) {
+            val contribution = contributions(params, hits)
+            hits.forEachIndexed { rank, hit ->
+                scores.merge(hit.doc, weight * contribution[rank], Double::plus)
             }
         }
         return scores.entries.sortedByDescending { it.value }.take(params.maxResults).map { it.key }
+    }
+
+    /**
+     * Calculate the weight of each entry
+     *
+     * [FusionMode.SCORE] normalises the score across the hits in the arm
+     */
+    private fun contributions(params: SearchParams, hits: List<ScoreDoc>): DoubleArray {
+        if (params.fusion == FusionMode.RANK) {
+            return DoubleArray(hits.size) { 1.0 / (params.rankFusionDampening + it + 1) }
+        }
+
+        val best = hits.firstOrNull()?.score ?: 0f
+        val worst = hits.lastOrNull()?.score ?: 0f
+        val span = best - worst
+        // One hit, or a run of identical scores: nothing to tell them apart by, so they all count the same.
+        if (span <= 1e-6f) return DoubleArray(hits.size) { 1.0 }
+        return DoubleArray(hits.size) { ((hits[it].score - worst) / span).toDouble() }
     }
 
     /**
@@ -105,44 +122,86 @@ object SearchEngine {
 
     /** Matches [queryText] against the indexed text, or null when it analyzes to nothing searchable. */
     private fun textQuery(analyzer: Analyzer, queryText: String, params: SearchParams): Query? {
-        val titleQuery = fieldQuery(analyzer, "title", queryText, params)
-        val descQuery = fieldQuery(analyzer, "description", queryText, params)
-        if (titleQuery == null && descQuery == null) return null
-
-        return BooleanQuery.Builder().apply {
-            titleQuery?.let {
-                add(
-                    BoostQuery(it, params.lexicalTitleBoost),
-                    BooleanClause.Occur.SHOULD
-                )
-            }
-            descQuery?.let { add(it, BooleanClause.Occur.SHOULD) }
-            setMinimumNumberShouldMatch(1)
-        }.build()
-    }
-
-    private fun fieldQuery(analyzer: Analyzer, field: String, queryText: String, params: SearchParams): Query? {
-        val terms = analyzeToTerms(analyzer, field, queryText)
+        val terms = analyzeToTerms(analyzer, SEARCH_FIELDS.first(), queryText)
         if (terms.isEmpty()) return null
 
+        val boosts = listOf(
+            params.lexicalTitleBoost,
+            1f,
+            params.lexicalModBoost,
+            params.lexicalContextBoost,
+            params.lexicalTagBoost,
+        )
+        val fields = SEARCH_FIELDS.zip(boosts)
         // The user is still typing unless they ended on a separator, so the last token is treated as a prefix.
         val lastIsPartial = queryText.isNotEmpty() && !queryText.last().isWhitespace()
-
-        if (terms.size == 1) {
-            return termClause(field, terms[0], partial = lastIsPartial, params = params)
-        }
 
         val builder = BooleanQuery.Builder()
         terms.forEachIndexed { index, term ->
             val partial = lastIsPartial && index == terms.lastIndex
-            builder.add(termClause(field, term, partial, params), BooleanClause.Occur.SHOULD)
+            builder.add(
+                bestField(params, fields) { field -> termClause(field, term, partial, params) },
+                BooleanClause.Occur.SHOULD,
+            )
         }
+        bestFieldOrNull(params, fields) { field -> phraseClause(field, terms, lastIsPartial, params) }
+            ?.let { builder.add(it, BooleanClause.Occur.SHOULD) }
+        titleStartClause(queryText, params)?.let { builder.add(it, BooleanClause.Occur.SHOULD) }
+
         builder.setMinimumNumberShouldMatch(1)
         return builder.build()
     }
 
     /**
+     * Reward options where the title begins with was typed.
+     * Helps with accuracy when starting to type a title.
+     */
+    private fun titleStartClause(queryText: String, params: SearchParams): Query? {
+        if (params.lexicalTitleStartBoost <= 0f) return null
+        val key = titleKey(queryText)
+        if (key.isEmpty()) return null
+        return BoostQuery(PrefixQuery(Term("title_key", key)), params.lexicalTitleStartBoost)
+    }
+
+    private fun bestField(
+        params: SearchParams,
+        fields: List<Pair<String, Float>>,
+        clause: (String) -> Query,
+    ): Query = DisjunctionMaxQuery(
+        fields.map { (field, boost) -> BoostQuery(clause(field), boost) },
+        params.lexicalFieldTieBreak,
+    )
+
+    private fun bestFieldOrNull(
+        params: SearchParams,
+        fields: List<Pair<String, Float>>,
+        clause: (String) -> Query?,
+    ): Query? {
+        val clauses = fields.mapNotNull { (field, boost) -> clause(field)?.let { BoostQuery(it, boost) } }
+        if (clauses.isEmpty()) return null
+        return DisjunctionMaxQuery(clauses, params.lexicalFieldTieBreak)
+    }
+
+    /**
+     * Rewards documents where the query's words appear together and in order.
+     */
+    private fun phraseClause(field: String, terms: List<String>, lastIsPartial: Boolean, params: SearchParams): Query? {
+        if (params.lexicalPhraseBoost <= 0f) return null
+        // Last word is not complete so doesn't take part in the sentence
+        val phraseTerms = if (lastIsPartial) terms.dropLast(1) else terms
+        if (phraseTerms.size < 2) return null
+
+        val phrase = PhraseQuery.Builder().apply {
+            setSlop(params.lexicalPhraseSlop)
+            phraseTerms.forEach { add(Term(field, it)) }
+        }.build()
+        return BoostQuery(phrase, params.lexicalPhraseBoost)
+    }
+
+    /**
      * Create a clause for a term against a field, supports partial and fuzzy matching
+     *
+     * The three clauses overlap, so the boost if all 3 hit shouldn't be astronomical
      */
     private fun termClause(field: String, term: String, partial: Boolean, params: SearchParams): Query {
         val exact = TermQuery(Term(field, term))
@@ -150,11 +209,21 @@ object SearchEngine {
             .add(BoostQuery(exact, params.lexicalExactBoost), BooleanClause.Occur.SHOULD)
 
         if (partial) {
-            builder.add(PrefixQuery(Term(field, term)), BooleanClause.Occur.SHOULD)
+            // Score the expansion of what the user could be typing instead, since PrefixQuery is constant score
+            builder.add(
+                PrefixQuery(
+                    Term(field, term),
+                    MultiTermQuery.TopTermsScoringBooleanQueryRewrite(params.lexicalPrefixExpansions)
+                ),
+                BooleanClause.Occur.SHOULD,
+            )
         }
         // Below this length an edit covers too much of the word to stay meaningful.
         if (term.length >= params.lexicalMinFuzzyLength) {
-            builder.add(FuzzyQuery(Term(field, term), 1, 1), BooleanClause.Occur.SHOULD)
+            builder.add(
+                FuzzyQuery(Term(field, term), 1, params.lexicalFuzzyPrefixLength),
+                BooleanClause.Occur.SHOULD,
+            )
         } else if (!partial) {
             return exact
         }
