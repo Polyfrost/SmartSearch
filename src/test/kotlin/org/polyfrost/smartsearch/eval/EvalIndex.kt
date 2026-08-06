@@ -1,6 +1,7 @@
 package org.polyfrost.smartsearch.eval
 
 import dev.langchain4j.data.embedding.Embedding
+import kotlinx.coroutines.runBlocking
 import org.polyfrost.smartsearch.index.SearchIndex
 import kotlin.io.path.Path
 import kotlin.io.path.createDirectories
@@ -9,9 +10,9 @@ private const val EMBEDDING_BATCH = 500
 
 object EvalIndex {
 
-    val index: SearchIndex by lazy { build() }
+    val index: SearchIndex by lazy { runBlocking { build() } }
 
-    private fun build(): SearchIndex {
+    private suspend fun build(): SearchIndex {
         val dir = Path("build/eval-index")
         dir.toFile().deleteRecursively()
         dir.createDirectories()

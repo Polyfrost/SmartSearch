@@ -121,7 +121,7 @@ private fun IndexerSnapshot.detail(): String {
     // Only show model info if its enabled
     when (modelState) {
         ModelController.State.ERRORED -> return "Failed to load the model, see the logs for more details"
-        ModelController.State.NO_NATIVES -> return "Failed to load the mode, no native libraries for this OS"
+        ModelController.State.NO_NATIVES -> return "Failed to load the model, no native libraries for this OS"
         else -> {}
     }
     return indexLine()

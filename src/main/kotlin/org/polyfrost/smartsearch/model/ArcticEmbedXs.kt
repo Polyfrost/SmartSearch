@@ -18,7 +18,7 @@ class ArcticEmbedXs : AbstractInProcessEmbeddingModel(SAME_THREAD_EXECUTOR) {
     override fun model(): OnnxBertBiEncoder = model
 
     private fun load(): OnnxBertBiEncoder {
-        val classLoader = Thread.currentThread().contextClassLoader
+        val classLoader = ArcticEmbedXs::class.java.classLoader
         val modelBytes = classLoader.getResourceAsStream("models/arctic-embed-xs/model_int8.onnx")
             ?.use { it.readBytes() }
             ?: error("Embedding model file is not available")

@@ -1,13 +1,14 @@
 package org.polyfrost.smartsearch.index
 
 import dev.langchain4j.data.embedding.Embedding
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.document.Document
 import org.apache.lucene.document.Field
 import org.apache.lucene.document.KnnFloatVectorField
 import org.apache.lucene.document.StringField
 import org.apache.lucene.document.TextField
-import org.apache.lucene.index.DirectoryReader
 import org.apache.lucene.index.IndexReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
@@ -17,6 +18,7 @@ import org.apache.lucene.search.BooleanClause
 import org.apache.lucene.search.BooleanQuery
 import org.apache.lucene.search.FieldExistsQuery
 import org.apache.lucene.search.IndexSearcher
+import org.apache.lucene.search.SearcherManager
 import org.apache.lucene.search.TermQuery
 import org.apache.lucene.store.Directory
 import org.apache.lucene.store.FSDirectory
@@ -59,6 +61,8 @@ open class SearchIndex(path: Path) {
     private val writer: IndexWriter = IndexWriter(directory, config).apply {
         commit()  // Create db file
     }
+    private val searcherManager: SearcherManager = SearcherManager(writer, null)
+    private val ingestMutex = Mutex()
 
     @Volatile
     var status: Status = Status.READY
@@ -77,11 +81,10 @@ open class SearchIndex(path: Path) {
      *
      * Returns the documents still needing a vector, for the caller to hand to an embedder.
      */
-    fun ingest(added: List<SearchDocument<*>>): List<SearchDocument<*>> {
+    suspend fun ingest(added: List<SearchDocument<*>>): List<SearchDocument<*>> = ingestMutex.withLock {
         status = Status.INGESTING
         try {
-            DirectoryReader.open(directory).use { reader ->
-                val searcher = IndexSearcher(reader)
+            withSearcher { searcher ->
                 val start = System.currentTimeMillis()
                 var addedCount = 0
                 var updatedCount = 0
@@ -103,8 +106,7 @@ open class SearchIndex(path: Path) {
                         }
                     }
                 }
-                writer.commit()
-                refreshStats()
+                commitAndRefresh()
                 SmartSearchClient.LOGGER.info("Added $addedCount and updated $updatedCount documents in ${System.currentTimeMillis() - start}ms")
                 return toEmbed
             }
@@ -117,10 +119,10 @@ open class SearchIndex(path: Path) {
      * Collect the IDs of all documents not in the known list
      */
     fun collectUnknownEntries(known: Set<String>): Set<String> {
-        DirectoryReader.open(directory).use { reader ->
+        withSearcher { searcher ->
             val staleIds = mutableSetOf<String>()
 
-            for (leaf in reader.leaves()) {
+            for (leaf in searcher.indexReader.leaves()) {
                 val storedFields = leaf.reader().storedFields()
                 for (docId in 0 until leaf.reader().maxDoc()) {
                     if (leaf.reader().liveDocs?.get(docId) == false) continue // skip already deleted docs
@@ -135,20 +137,18 @@ open class SearchIndex(path: Path) {
         }
     }
 
-    fun removeEntries(ids: Set<String>){
+    fun removeEntries(ids: Set<String>) {
         if (ids.isNotEmpty()) {
             val terms = ids.map { Term("id", it) }.toTypedArray()
             writer.deleteDocuments(*terms)
-            writer.commit()
-            refreshStats()
+            commitAndRefresh()
             SmartSearchClient.LOGGER.info("Removed ${ids.size} search documents")
         }
     }
 
     fun <T> search(searcher: (IndexReader, IndexSearcher, Analyzer) -> T): T {
-        DirectoryReader.open(directory).use { reader ->
-            val indexSearcher = IndexSearcher(reader)
-            return searcher.invoke(reader, indexSearcher, queryAnalyzer)
+        return withSearcher { indexSearcher ->
+            searcher.invoke(indexSearcher.indexReader, indexSearcher, queryAnalyzer)
         }
     }
 
@@ -157,14 +157,30 @@ open class SearchIndex(path: Path) {
             val newDoc = buildDocument(doc, embedding)
             writer.updateDocument(Term("id", doc.id), newDoc)
         }
+        commitAndRefresh()
+    }
+
+    /** Borrow the shared searcher, and give it back later */
+    private inline fun <T> withSearcher(block: (IndexSearcher) -> T): T {
+        val searcher = searcherManager.acquire()
+        try {
+            return block(searcher)
+        } finally {
+            searcherManager.release(searcher)
+        }
+    }
+
+    /** Writes pending changes, then refreshes the searcher */
+    private fun commitAndRefresh() {
         writer.commit()
+        searcherManager.maybeRefreshBlocking()
         refreshStats()
     }
 
     private fun refreshStats() {
         stats = runCatching {
-            DirectoryReader.open(directory).use { reader ->
-                Stats(reader.numDocs(), IndexSearcher(reader).count(FieldExistsQuery("embedding")))
+            withSearcher { searcher ->
+                Stats(searcher.indexReader.numDocs(), searcher.count(FieldExistsQuery("embedding")))
             }
         }.getOrElse {
             SmartSearchClient.LOGGER.warn("Failed to read index stats", it)
@@ -235,6 +251,7 @@ open class SearchIndex(path: Path) {
     }
 
     fun close() {
+        searcherManager.close()
         writer.close()
         directory.close()
     }

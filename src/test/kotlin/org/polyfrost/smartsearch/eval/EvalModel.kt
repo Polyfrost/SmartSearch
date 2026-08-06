@@ -94,7 +94,7 @@ object EvalModel {
 
     private fun cacheKey(ids: List<String>): String {
         val md = MessageDigest.getInstance("MD5")
-        md.update(ArcticEmbedXsFactory.create().javaClass.name.toByteArray())
+        md.update(ArcticEmbedXsFactory::class.java.name.toByteArray())
         for (id in ids) {
             md.update(id.toByteArray())
             md.update(documentTexts.getValue(id).toByteArray())

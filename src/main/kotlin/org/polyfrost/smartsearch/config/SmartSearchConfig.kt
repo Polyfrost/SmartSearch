@@ -59,7 +59,7 @@ object SmartSearchConfig : Config(
             resultScoreFloor = resultScoreFloor,
             maxKnnResults = maxKnnResults,
             minKnnScore = minKnnScore,
-            knnWeightScalingStartWords = KnnWeightScalingStartWords,
+            knnWeightScalingStartWords = knnWeightScalingStartWords,
             maxKnnWeightWords = maxKnnWeightWords,
             minKnnWeight = minKnnWeight,
             maxKnnWeight = maxKnnWeight,
@@ -275,7 +275,7 @@ object SmartSearchConfig : Config(
         min = 1f,
         max = 10f,
     )
-    var KnnWeightScalingStartWords: Int = SearchParams.DEFAULT.knnWeightScalingStartWords
+    var knnWeightScalingStartWords: Int = SearchParams.DEFAULT.knnWeightScalingStartWords
 
     @Number(
         title = "Words for maximum semantic weight",
@@ -356,7 +356,7 @@ object SmartSearchConfig : Config(
         addDependency("lexicalScoreFloor", "overwriteDefault")
         addDependency("maxKnnResults", "overwriteDefault")
         addDependency("minKnnScore", "overwriteDefault")
-        addDependency("KnnWeightScalingStartWords", "overwriteDefault")
+        addDependency("knnWeightScalingStartWords", "overwriteDefault")
         addDependency("maxKnnWeightWords", "overwriteDefault")
         addDependency("minKnnWeight", "overwriteDefault")
         addDependency("maxKnnWeight", "overwriteDefault")

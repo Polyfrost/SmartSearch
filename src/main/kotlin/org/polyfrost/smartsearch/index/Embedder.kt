@@ -32,20 +32,23 @@ object Embedder {
 
         CoroutineScope(Dispatchers.Default).launch {
             val model = ModelController.getModel()
-            while (toEmbed.isNotEmpty()) {
-                val batch = mutableListOf(toEmbed.poll())
-                while (batch.size < BATCH_SIZE && toEmbed.isNotEmpty()) {
-                    batch.add(toEmbed.poll())
+            try {
+                while (toEmbed.isNotEmpty()) {
+                    val batch = mutableListOf(toEmbed.poll())
+                    while (batch.size < BATCH_SIZE && toEmbed.isNotEmpty()) {
+                        batch.add(toEmbed.poll())
+                    }
+                    DataStore.addEmbeddings(batch.mapNotNull {
+                        val str = embeddingText(it)
+                        if (str.isBlank()) return@mapNotNull null
+                        it to model.embed(str).content()
+                    }.toMap())
                 }
-                DataStore.addEmbeddings(batch.mapNotNull {
-                    val str = embeddingText(it)
-                    if (str.isBlank()) return@mapNotNull null
-                    it to model.embed(str).content()
-                }.toMap())
+                SmartSearchClient.LOGGER.info("Embedding finished in ${System.currentTimeMillis() - start}ms")
+            } finally {
+                isRunning.set(false)
             }
-            isRunning.set(false)
 
-            SmartSearchClient.LOGGER.info("Embedding finished in ${System.currentTimeMillis() - start}ms")
             startEmbeddings() // Re-trigger in case of a race condition
         }
     }

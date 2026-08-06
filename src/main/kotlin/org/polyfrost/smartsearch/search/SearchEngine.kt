@@ -109,7 +109,7 @@ object SearchEngine {
     private fun semanticWeight(query: String, params: SearchParams): Double {
         val words = query.trim().split(WORD_TERMINATOR).size
         val ramp = ((words - params.knnWeightScalingStartWords).toDouble()
-                / (params.maxKnnWeightWords - params.knnWeightScalingStartWords))
+                / (params.maxKnnWeightWords - params.knnWeightScalingStartWords).coerceAtLeast(1))
             .coerceIn(0.0, 1.0)
         return params.minKnnWeight + ramp * (params.maxKnnWeight - params.minKnnWeight)
     }
@@ -245,15 +245,15 @@ object SearchEngine {
 
     private fun analyzeToTerms(analyzer: Analyzer, field: String, text: String): List<String> {
         val terms = mutableListOf<String>()
-        val tokenStream: TokenStream = analyzer.tokenStream(field, text)
-        val attr = tokenStream.addAttribute(CharTermAttribute::class.java)
+        analyzer.tokenStream(field, text).use { tokenStream ->
+            val attr = tokenStream.addAttribute(CharTermAttribute::class.java)
 
-        tokenStream.reset()
-        while (tokenStream.incrementToken()) {
-            terms.add(attr.toString())
+            tokenStream.reset()
+            while (tokenStream.incrementToken()) {
+                terms.add(attr.toString())
+            }
+            tokenStream.end()
         }
-        tokenStream.end()
-        tokenStream.close()
 
         return terms
     }
