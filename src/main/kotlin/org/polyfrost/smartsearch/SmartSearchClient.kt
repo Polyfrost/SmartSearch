@@ -27,6 +27,7 @@ object SmartSearchClient {
         EventManager.register(ShutdownEvent::class.java) { _ ->
             DataStore.close()
         }
+        DataStore.removeTrackedStaleEntries()
     }
 
     internal fun startModel() {

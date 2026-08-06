@@ -48,10 +48,10 @@ class SearchEvalTest {
         // a real regression does not. Raise them as the ranking improves.
         val overall = Metrics.score(results)
         assertTrue(overall.empty < 0.02, "too many queries returned nothing: ${overall.empty}")
-        assertTrue(overall.mrr > 0.70, "overall MRR regressed: ${overall.mrr}")
+        assertTrue(overall.mrr > 0.93, "overall MRR regressed: ${overall.mrr}")
 
         val exact = Metrics.score(results.filter { it.query.family == "title-exact" })
-        assertTrue(exact.hitAt1 > 0.78, "searching an option's exact title should almost always win: ${exact.hitAt1}")
-        assertTrue(exact.recall > 0.90, "exact titles should essentially always be found: ${exact.recall}")
+        assertTrue(exact.hitAt1 > 0.95, "searching an option's exact title should almost always win: ${exact.hitAt1}")
+        assertTrue(exact.recall > 0.99, "exact titles should essentially always be found: ${exact.recall}")
     }
 }

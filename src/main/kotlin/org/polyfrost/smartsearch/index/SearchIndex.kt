@@ -51,6 +51,7 @@ open class SearchIndex(path: Path) {
     data class Stats(val documents: Int, val embedded: Int)
 
     private val directory: Directory = FSDirectory.open(path)
+
     // Split index and query analyzer, this helps us split words like "OverflowParticles" during indexing
     private val indexAnalyzer: Analyzer = SearchAnalyzer(splitCompounds = true)
     private val queryAnalyzer: Analyzer = SearchAnalyzer(splitCompounds = false)
@@ -74,9 +75,7 @@ open class SearchIndex(path: Path) {
     /**
      * Writes every document in [added] whose indexed text is new or has changed.
      *
-     * Returns the documents still needing a vector, for the caller to hand to an embedder. Ingest deliberately does
-     * not embed: writing the text side is fast and makes documents lexically findable immediately, while embedding
-     * thousands of documents takes long enough that it has to happen in the background.
+     * Returns the documents still needing a vector, for the caller to hand to an embedder.
      */
     fun ingest(added: List<SearchDocument<*>>): List<SearchDocument<*>> {
         status = Status.INGESTING
@@ -114,29 +113,35 @@ open class SearchIndex(path: Path) {
         }
     }
 
-    /** Drops every indexed document whose id is not in [keep]. */
-    fun clean(keep: Set<String>) {
+    /**
+     * Collect the IDs of all documents not in the known list
+     */
+    fun collectUnknownEntries(known: Set<String>): Set<String> {
         DirectoryReader.open(directory).use { reader ->
-            val staleIds = mutableListOf<String>()
+            val staleIds = mutableSetOf<String>()
 
             for (leaf in reader.leaves()) {
                 val storedFields = leaf.reader().storedFields()
                 for (docId in 0 until leaf.reader().maxDoc()) {
                     if (leaf.reader().liveDocs?.get(docId) == false) continue // skip already deleted docs
                     val id = storedFields.document(docId, setOf("id")).get("id") ?: continue
-                    if (id !in keep) {
+                    if (id !in known) {
                         staleIds.add(id)
                     }
                 }
             }
 
-            if (staleIds.isNotEmpty()) {
-                val terms = staleIds.map { Term("id", it) }.toTypedArray()
-                writer.deleteDocuments(*terms)
-                writer.commit()
-                refreshStats()
-                SmartSearchClient.LOGGER.info("Removed ${staleIds.size} stale search documents")
-            }
+            return staleIds
+        }
+    }
+
+    fun removeEntries(ids: Set<String>){
+        if (ids.isNotEmpty()) {
+            val terms = ids.map { Term("id", it) }.toTypedArray()
+            writer.deleteDocuments(*terms)
+            writer.commit()
+            refreshStats()
+            SmartSearchClient.LOGGER.info("Removed ${ids.size} search documents")
         }
     }
 
@@ -263,6 +268,7 @@ internal fun SearchScope.toKey(): String = when (this) {
     is SearchScope.Mods -> "mods"
     is SearchScope.Options -> "options"
     is SearchScope.Keybinds -> "keybinds"
+    is SearchScope.Huds -> "huds"
     is SearchScope.Config -> "config:${this.id}"
 }
 

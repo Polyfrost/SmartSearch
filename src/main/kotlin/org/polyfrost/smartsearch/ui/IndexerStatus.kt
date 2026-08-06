@@ -127,5 +127,17 @@ private fun IndexerSnapshot.detail(): String {
     return indexLine()
 }
 
-private fun IndexerSnapshot.indexLine(): String =
-    "$documents ${if (documents == 1) "entry" else "entries"}, $embedded embedded"
+private fun IndexerSnapshot.indexLine(): String = buildString {
+    append(documents)
+    append(if (documents == 1) " entry" else " entries")
+    if (SmartSearchConfig.enableSemantic || embedded != 0) {
+        append(", ")
+        append(embedded)
+        append(" embedded")
+    }
+    if (SmartSearchConfig.staleEntries.isNotEmpty()) {
+        append(", ")
+        append(SmartSearchConfig.staleEntries.size)
+        append(" stale")
+    }
+}

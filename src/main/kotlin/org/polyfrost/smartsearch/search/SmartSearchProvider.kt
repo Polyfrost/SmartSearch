@@ -39,6 +39,7 @@ object SmartSearchProvider : SearchProvider {
         removed: Set<String>
     ) {
         Embedder.queueEmbedding(DataStore.ingest(added))
+        DataStore.updateTrackedStaleEntries()
     }
 
     /** The query as a vector, or null if the model isn't available */

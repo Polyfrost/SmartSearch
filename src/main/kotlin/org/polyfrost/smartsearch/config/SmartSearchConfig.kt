@@ -4,9 +4,9 @@ import org.polyfrost.oneconfig.api.config.v1.Config
 import org.polyfrost.oneconfig.api.config.v1.Properties
 import org.polyfrost.oneconfig.api.config.v1.Tree
 import org.polyfrost.oneconfig.api.config.v1.annotations.Button
+import org.polyfrost.oneconfig.api.config.v1.annotations.Include
 import org.polyfrost.oneconfig.api.config.v1.annotations.Number
 import org.polyfrost.oneconfig.api.config.v1.annotations.Switch
-import org.polyfrost.oneconfig.internal.ui.search.SearchCorpus
 import org.polyfrost.smartsearch.SmartSearchClient
 import org.polyfrost.smartsearch.index.DataStore
 import org.polyfrost.smartsearch.search.SearchParams
@@ -36,7 +36,7 @@ object SmartSearchConfig : Config(
         title = "Clean database",
     )
     fun cleanDb() {
-        DataStore.clean(SearchCorpus.corpus.keys)
+        DataStore.clean()
     }
 
     val params: SearchParams
@@ -307,6 +307,13 @@ object SmartSearchConfig : Config(
         max = 3f,
     )
     var maxKnnWeight: Float = SearchParams.DEFAULT.maxKnnWeight
+
+    /**
+     * Keep track of stale config entries (mods/config options that were removed),
+     * the ID of an entry paired with the amount of launches left before it is removed from the database.
+     */
+    @Include
+    var staleEntries: StaleEntries = StaleEntries()
 
     override fun makeTree(): Tree {
         // Put at the top
