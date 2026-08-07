@@ -1,8 +1,8 @@
 package org.polyfrost.smartsearch.search
 
 import org.apache.lucene.analysis.Analyzer
-import org.apache.lucene.analysis.TokenStream
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute
 import org.apache.lucene.index.Term
 import org.apache.lucene.search.*
 import org.polyfrost.oneconfig.internal.ui.search.SearchScope
@@ -20,6 +20,11 @@ object SearchEngine {
      * One side of the search before fusing, [zero] notes the zero point of this arm for scoring
      */
     private class Arm(val hits: List<ScoreDoc>, val weight: Double, val zero: Float)
+
+    /**
+     * Query cut in to terms, and check if the last part is a partial
+     */
+    private class Analyzed(val terms: List<String>, val lastIsPartial: Boolean)
 
     /**
      * Ranked document ids for [query], best first, capped at [SearchParams.maxResults].
@@ -82,7 +87,10 @@ object SearchEngine {
                 scores.merge(hit.doc, arm.weight * contribution[rank], Double::plus)
             }
         }
-        val ranked = scores.entries.sortedByDescending { it.value }.take(params.maxResults)
+        // Ties are broken by document id for determinism
+        val ranked = scores.entries
+            .sortedWith(compareByDescending<Map.Entry<Int, Double>> { it.value }.thenBy { it.key })
+            .take(params.maxResults)
         val cutoff = (ranked.firstOrNull()?.value ?: 0.0) * params.resultScoreFloor
         return ranked.takeWhile { it.value >= cutoff }.map { it.key }
     }
@@ -133,7 +141,8 @@ object SearchEngine {
 
     /** Matches [queryText] against the indexed text, or null when it analyzes to nothing searchable. */
     private fun textQuery(analyzer: Analyzer, queryText: String, params: SearchParams): Query? {
-        val terms = analyzeToTerms(analyzer, SEARCH_FIELDS.first(), queryText)
+        val analyzed = analyzeToTerms(analyzer, SEARCH_FIELDS.first(), queryText)
+        val terms = analyzed.terms
         if (terms.isEmpty()) return null
 
         val boosts = listOf(
@@ -145,7 +154,7 @@ object SearchEngine {
         )
         val fields = SEARCH_FIELDS.zip(boosts)
         // The user is still typing unless they ended on a separator, so the last token is treated as a prefix.
-        val lastIsPartial = queryText.isNotEmpty() && !queryText.last().isWhitespace()
+        val lastIsPartial = analyzed.lastIsPartial
 
         val words = BooleanQuery.Builder()
         terms.forEachIndexed { index, term ->
@@ -244,18 +253,21 @@ object SearchEngine {
         return builder.build()
     }
 
-    private fun analyzeToTerms(analyzer: Analyzer, field: String, text: String): List<String> {
+    private fun analyzeToTerms(analyzer: Analyzer, field: String, text: String): Analyzed {
         val terms = mutableListOf<String>()
+        var lastEnd = -1
         analyzer.tokenStream(field, text).use { tokenStream ->
             val attr = tokenStream.addAttribute(CharTermAttribute::class.java)
+            val offset = tokenStream.addAttribute(OffsetAttribute::class.java)
 
             tokenStream.reset()
             while (tokenStream.incrementToken()) {
                 terms.add(attr.toString())
+                lastEnd = offset.endOffset()
             }
             tokenStream.end()
         }
 
-        return terms
+        return Analyzed(terms, lastEnd == text.length)
     }
 }
