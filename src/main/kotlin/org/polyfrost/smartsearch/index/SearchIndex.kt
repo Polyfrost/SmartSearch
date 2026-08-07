@@ -191,7 +191,10 @@ open class SearchIndex(path: Path) {
         }
     }
 
-    /** Commits everything written since the last commit, and re-reads stats */
+    /**
+     * Commits everything written since the last commit, and re-reads stats
+     * Don't run this in a search/whileOpen block, or there will be a deadlock if close() is called at the same time
+     */
     fun flush() {
         whileOpen { commitAndRefresh() }
     }
@@ -329,7 +332,7 @@ open class SearchIndex(path: Path) {
     }
 }
 
-private fun SearchDocument<*>.hash(): String {
+internal fun SearchDocument<*>.hash(): String {
     val md = MessageDigest.getInstance("MD5")
     val hashStr = buildString {
         append(SCHEMA_VERSION)

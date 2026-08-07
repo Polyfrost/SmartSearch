@@ -24,7 +24,7 @@ object Embedder {
         synchronized(queueLock) {
             for (doc in toEmbed) {
                 // Skip if embedding would have the same result
-                if (inFlight[doc.id] == embeddingText(doc)) continue
+                if (inFlight[doc.id] == doc.hash()) continue
                 this.toEmbed[doc.id] = doc
             }
         }
@@ -43,7 +43,7 @@ object Embedder {
         inFlight.clear()
         for (doc in batch) {
             toEmbed.remove(doc.id)
-            inFlight[doc.id] = embeddingText(doc)
+            inFlight[doc.id] = doc.hash()
         }
         batch
     }
@@ -65,7 +65,7 @@ object Embedder {
                     val batch = takeBatch()
                     if (batch.isEmpty()) break
                     val embedded = batch.mapNotNull {
-                        val str = inFlight[it.id] ?: embeddingText(it)
+                        val str = embeddingText(it)
                         if (str.isBlank()) return@mapNotNull null
                         it to model.embed(str).content()
                     }.toMap()
