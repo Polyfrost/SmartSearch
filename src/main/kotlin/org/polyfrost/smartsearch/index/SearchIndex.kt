@@ -27,6 +27,8 @@ import org.polyfrost.oneconfig.internal.ui.search.SearchScope
 import org.polyfrost.smartsearch.SmartSearchClient
 import java.security.MessageDigest
 import java.nio.file.Path
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.write
 
 /**
  * Bumped whenever [SearchIndex.buildDocument] changes how a document is laid out
@@ -64,6 +66,12 @@ open class SearchIndex(path: Path) {
     private val searcherManager: SearcherManager = SearcherManager(writer, null)
     private val ingestMutex = Mutex()
 
+    /** Held for reading while the index is in use, and for writing by [close] */
+    private val lifecycleLock = ReentrantReadWriteLock()
+
+    @Volatile
+    private var closed = false
+
     @Volatile
     var status: Status = Status.READY
         private set
@@ -82,43 +90,45 @@ open class SearchIndex(path: Path) {
      * Returns the documents still needing a vector, for the caller to hand to an embedder.
      */
     suspend fun ingest(added: List<SearchDocument<*>>): List<SearchDocument<*>> = ingestMutex.withLock {
-        status = Status.INGESTING
-        try {
-            withSearcher { searcher ->
-                val start = System.currentTimeMillis()
-                var addedCount = 0
-                var updatedCount = 0
+        whileOpen {
+            status = Status.INGESTING
+            try {
+                withSearcher { searcher ->
+                    val start = System.currentTimeMillis()
+                    var addedCount = 0
+                    var updatedCount = 0
 
-                val toEmbed: MutableList<SearchDocument<*>> = mutableListOf()
-                for (doc in added) {
-                    val entryStatus = checkStatus(searcher, doc)
-                    if (entryStatus != EntryStatus.EXISTS) {
-                        toEmbed.add(doc)
-                    }
-                    if (entryStatus == EntryStatus.NOT_EXISTS || entryStatus == EntryStatus.STALE) {
-                        val newDoc = buildDocument(doc)
-                        if (entryStatus == EntryStatus.NOT_EXISTS) {
-                            writer.addDocument(newDoc)
-                            addedCount++
-                        } else {
-                            writer.updateDocument(Term("id", doc.id), newDoc)
-                            updatedCount++
+                    val toEmbed: MutableList<SearchDocument<*>> = mutableListOf()
+                    for (doc in added) {
+                        val entryStatus = checkStatus(searcher, doc)
+                        if (entryStatus != EntryStatus.EXISTS) {
+                            toEmbed.add(doc)
+                        }
+                        if (entryStatus == EntryStatus.NOT_EXISTS || entryStatus == EntryStatus.STALE) {
+                            val newDoc = buildDocument(doc)
+                            if (entryStatus == EntryStatus.NOT_EXISTS) {
+                                writer.addDocument(newDoc)
+                                addedCount++
+                            } else {
+                                writer.updateDocument(Term("id", doc.id), newDoc)
+                                updatedCount++
+                            }
                         }
                     }
+                    commitAndRefresh()
+                    SmartSearchClient.LOGGER.info("Added $addedCount and updated $updatedCount documents in ${System.currentTimeMillis() - start}ms")
+                    return@whileOpen toEmbed
                 }
-                commitAndRefresh()
-                SmartSearchClient.LOGGER.info("Added $addedCount and updated $updatedCount documents in ${System.currentTimeMillis() - start}ms")
-                return toEmbed
+            } finally {
+                status = Status.READY
             }
-        } finally {
-            status = Status.READY
-        }
+        } ?: emptyList()
     }
 
     /**
      * Collect the IDs of all documents not in the known list
      */
-    fun collectUnknownEntries(known: Set<String>): Set<String> {
+    fun collectUnknownEntries(known: Set<String>): Set<String> = whileOpen {
         withSearcher { searcher ->
             val staleIds = mutableSetOf<String>()
 
@@ -133,12 +143,13 @@ open class SearchIndex(path: Path) {
                 }
             }
 
-            return staleIds
+            return@whileOpen staleIds
         }
-    }
+    } ?: emptySet()
 
     fun removeEntries(ids: Set<String>) {
-        if (ids.isNotEmpty()) {
+        if (ids.isEmpty()) return
+        whileOpen {
             val terms = ids.map { Term("id", it) }.toTypedArray()
             writer.deleteDocuments(*terms)
             commitAndRefresh()
@@ -146,18 +157,35 @@ open class SearchIndex(path: Path) {
         }
     }
 
-    fun <T> search(searcher: (IndexReader, IndexSearcher, Analyzer) -> T): T {
-        return withSearcher { indexSearcher ->
+    /** Runs [searcher] against the index, or returns null once the index is closed */
+    fun <T> search(searcher: (IndexReader, IndexSearcher, Analyzer) -> T): T? = whileOpen {
+        withSearcher { indexSearcher ->
             searcher.invoke(indexSearcher.indexReader, indexSearcher, queryAnalyzer)
         }
     }
 
     fun addEmbeddings(embeddings: Map<SearchDocument<*>, Embedding>) {
-        embeddings.forEach { (doc, embedding) ->
-            val newDoc = buildDocument(doc, embedding)
-            writer.updateDocument(Term("id", doc.id), newDoc)
+        whileOpen {
+            embeddings.forEach { (doc, embedding) ->
+                val newDoc = buildDocument(doc, embedding)
+                writer.updateDocument(Term("id", doc.id), newDoc)
+            }
+            commitAndRefresh()
         }
-        commitAndRefresh()
+    }
+
+    /**
+     * Runs [block] against the index and keep the index open until finished,
+     * returns null if the index is already closed.
+     */
+    private inline fun <T> whileOpen(block: () -> T): T? {
+        lifecycleLock.readLock().lock()
+        try {
+            if (closed) return null
+            return block()
+        } finally {
+            lifecycleLock.readLock().unlock()
+        }
     }
 
     /** Borrow the shared searcher, and give it back later */
@@ -250,7 +278,10 @@ open class SearchIndex(path: Path) {
         return doc
     }
 
-    fun close() {
+    /** Closes the index, once every in flight read and write has finished */
+    fun close(): Unit = lifecycleLock.write {
+        if (closed) return
+        closed = true
         searcherManager.close()
         writer.close()
         directory.close()

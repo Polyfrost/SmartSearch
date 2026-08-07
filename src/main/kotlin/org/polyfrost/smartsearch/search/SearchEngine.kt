@@ -61,7 +61,7 @@ object SearchEngine {
             ).mapNotNull { doc ->
                 storedFields.document(doc, setOf("id")).get("id")
             }
-        }
+        }.orEmpty()
     }
 
     /**

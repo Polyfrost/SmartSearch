@@ -90,7 +90,7 @@ by both arms naturally rank higher.
 
 The lexical arm always has weight 1, the semantic weight depends on the amount of words in the query. Shorter queries
 usually are a better match for lexical, while longer queries is where semantic search shines. The weight of semantic
-search scales from 0.25 to 1 when going from 2 words to 12 words.
+search scales from 0.25 to 2 when going from 2 words to 6 words.
 
 Lastly the merged list is capped at the maximum amount of results, and everything under a score threshold (0.4) is
 dropped to weed out junk results.

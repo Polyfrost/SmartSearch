@@ -1,7 +1,6 @@
 package org.polyfrost.smartsearch.index
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
 import org.polyfrost.smartsearch.SmartSearchClient
@@ -22,18 +21,19 @@ object Embedder {
     }
 
     fun startEmbeddings() {
-        if (toEmbed.isEmpty() || !ModelController.isReady()
-            || !SmartSearchConfig.enableSemantic || isRunning.getAndSet(true)
+        if (toEmbed.isEmpty() || !ModelController.isReady() || !SmartSearchConfig.enableSemantic
+            || !SmartSearchClient.scope.isActive || isRunning.getAndSet(true)
         ) {
             return
         }
         SmartSearchClient.LOGGER.info("Starting embedding of ${toEmbed.size} documents...")
         val start = System.currentTimeMillis()
 
-        CoroutineScope(Dispatchers.Default).launch {
+        SmartSearchClient.scope.launch {
             val model = ModelController.getModel()
             try {
-                while (toEmbed.isNotEmpty()) {
+                // isActive is checked every batch so this can be cancelled if needed
+                while (toEmbed.isNotEmpty() && isActive) {
                     val batch = mutableListOf(toEmbed.poll())
                     while (batch.size < BATCH_SIZE && toEmbed.isNotEmpty()) {
                         batch.add(toEmbed.poll())
