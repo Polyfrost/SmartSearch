@@ -1,8 +1,10 @@
 package org.polyfrost.smartsearch.index
 
 import dev.langchain4j.data.embedding.Embedding
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.document.Document
 import org.apache.lucene.document.Field
@@ -90,39 +92,41 @@ open class SearchIndex(path: Path) {
      * Returns the documents still needing a vector, for the caller to hand to an embedder.
      */
     suspend fun ingest(added: List<SearchDocument<*>>): List<SearchDocument<*>> = ingestMutex.withLock {
-        whileOpen {
-            status = Status.INGESTING
-            try {
-                withSearcher { searcher ->
-                    val start = System.currentTimeMillis()
-                    var addedCount = 0
-                    var updatedCount = 0
+        withContext(Dispatchers.IO) {
+            whileOpen {
+                status = Status.INGESTING
+                try {
+                    withSearcher { searcher ->
+                        val start = System.currentTimeMillis()
+                        var addedCount = 0
+                        var updatedCount = 0
 
-                    val toEmbed: MutableList<SearchDocument<*>> = mutableListOf()
-                    for (doc in added) {
-                        val entryStatus = checkStatus(searcher, doc)
-                        if (entryStatus != EntryStatus.EXISTS) {
-                            toEmbed.add(doc)
-                        }
-                        if (entryStatus == EntryStatus.NOT_EXISTS || entryStatus == EntryStatus.STALE) {
-                            val newDoc = buildDocument(doc)
-                            if (entryStatus == EntryStatus.NOT_EXISTS) {
-                                writer.addDocument(newDoc)
-                                addedCount++
-                            } else {
-                                writer.updateDocument(Term("id", doc.id), newDoc)
-                                updatedCount++
+                        val toEmbed: MutableList<SearchDocument<*>> = mutableListOf()
+                        for (doc in added) {
+                            val entryStatus = checkStatus(searcher, doc)
+                            if (entryStatus != EntryStatus.EXISTS) {
+                                toEmbed.add(doc)
+                            }
+                            if (entryStatus == EntryStatus.NOT_EXISTS || entryStatus == EntryStatus.STALE) {
+                                val newDoc = buildDocument(doc)
+                                if (entryStatus == EntryStatus.NOT_EXISTS) {
+                                    writer.addDocument(newDoc)
+                                    addedCount++
+                                } else {
+                                    writer.updateDocument(Term("id", doc.id), newDoc)
+                                    updatedCount++
+                                }
                             }
                         }
+                        commitAndRefresh()
+                        SmartSearchClient.LOGGER.info("Added $addedCount and updated $updatedCount documents in ${System.currentTimeMillis() - start}ms")
+                        return@whileOpen toEmbed
                     }
-                    commitAndRefresh()
-                    SmartSearchClient.LOGGER.info("Added $addedCount and updated $updatedCount documents in ${System.currentTimeMillis() - start}ms")
-                    return@whileOpen toEmbed
+                } finally {
+                    status = Status.READY
                 }
-            } finally {
-                status = Status.READY
-            }
-        } ?: emptyList()
+            } ?: emptyList()
+        }
     }
 
     /**
@@ -299,7 +303,9 @@ private fun SearchDocument<*>.hash(): String {
             metadata.section,
             metadata.category,
             metadata.subcategory,
-            metadata.modTitle
+            metadata.path,
+            metadata.modTitle,
+            metadata.modDescription,
         ).forEach {
             it?.let { append(it) }
             append("::")

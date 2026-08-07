@@ -27,10 +27,7 @@ We use the following fields:
 - title
 - description
 - mod title
-- category
-- subcategory
-- section
-- path
+- category, subcategory, section and path concatenated into 1 field,
 - search tags
 
 Additionally, we also store the title again, but without being analyzed.

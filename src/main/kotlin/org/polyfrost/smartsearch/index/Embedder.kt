@@ -6,46 +6,77 @@ import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
 import org.polyfrost.smartsearch.SmartSearchClient
 import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.model.ModelController
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 object Embedder {
     const val BATCH_SIZE = 50
+    private val toEmbed: MutableMap<String, SearchDocument<*>> = LinkedHashMap()
 
-    private val toEmbed: ConcurrentLinkedQueue<SearchDocument<*>> = ConcurrentLinkedQueue()
+    /** Every document currently being embedded in this batch */
+    private val inFlight: MutableMap<String, String> = HashMap()
+
+    /** Guards [toEmbed] and [inFlight] */
+    private val queueLock = Any()
+
     private val isRunning = AtomicBoolean(false)
 
     fun queueEmbedding(toEmbed: List<SearchDocument<*>>) {
-        this.toEmbed.addAll(toEmbed)
+        synchronized(queueLock) {
+            for (doc in toEmbed) {
+                // Skip if embedding would have the same result
+                if (inFlight[doc.id] == embeddingText(doc)) continue
+                this.toEmbed[doc.id] = doc
+            }
+        }
         startEmbeddings()
     }
 
+    fun dropQueued(ids: Set<String>) {
+        if (ids.isEmpty()) return
+        synchronized(queueLock) {
+            ids.forEach(toEmbed::remove)
+        }
+    }
+
+    private fun takeBatch(): List<SearchDocument<*>> = synchronized(queueLock) {
+        val batch = toEmbed.values.take(BATCH_SIZE)
+        inFlight.clear()
+        for (doc in batch) {
+            toEmbed.remove(doc.id)
+            inFlight[doc.id] = embeddingText(doc)
+        }
+        batch
+    }
+
     fun startEmbeddings() {
-        if (toEmbed.isEmpty() || !ModelController.isReady() || !SmartSearchConfig.enableSemantic
+        if (pending == 0 || !ModelController.isReady() || !SmartSearchConfig.enableSemantic
             || !SmartSearchClient.scope.isActive || isRunning.getAndSet(true)
         ) {
             return
         }
-        SmartSearchClient.LOGGER.info("Starting embedding of ${toEmbed.size} documents...")
+        SmartSearchClient.LOGGER.info("Starting embedding of $pending documents...")
         val start = System.currentTimeMillis()
 
         SmartSearchClient.scope.launch {
             val model = ModelController.getModel()
             try {
-                // isActive is checked every batch so this can be cancelled if needed
-                while (toEmbed.isNotEmpty() && isActive) {
-                    val batch = mutableListOf(toEmbed.poll())
-                    while (batch.size < BATCH_SIZE && toEmbed.isNotEmpty()) {
-                        batch.add(toEmbed.poll())
-                    }
-                    DataStore.addEmbeddings(batch.mapNotNull {
-                        val str = embeddingText(it)
+                // isActive is checked every batch so this can be canceled if needed
+                while (isActive) {
+                    val batch = takeBatch()
+                    if (batch.isEmpty()) break
+                    val embedded = batch.mapNotNull {
+                        val str = inFlight[it.id] ?: embeddingText(it)
                         if (str.isBlank()) return@mapNotNull null
                         it to model.embed(str).content()
-                    }.toMap())
+                    }.toMap()
+                    // Filter out re-queued (updated) documents
+                    DataStore.addEmbeddings(synchronized(queueLock) {
+                        embedded.filterKeys { it.id !in toEmbed }
+                    })
                 }
                 SmartSearchClient.LOGGER.info("Embedding finished in ${System.currentTimeMillis() - start}ms")
             } finally {
+                synchronized(queueLock) { inFlight.clear() }
                 isRunning.set(false)
             }
 
@@ -54,7 +85,7 @@ object Embedder {
     }
 
     fun isRunning() = isRunning.get()
-    val pending: Int get() = toEmbed.size
+    val pending: Int get() = synchronized(queueLock) { toEmbed.size }
 }
 
 /**

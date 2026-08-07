@@ -42,9 +42,8 @@ object SmartSearchClient {
 
     internal fun startModel() {
         scope.launch {
-            ModelController.init(ArcticEmbedXsFactory) {
-                Embedder.startEmbeddings()
-            }
+            ModelController.init(ArcticEmbedXsFactory)
+            Embedder.startEmbeddings()
         }
     }
 

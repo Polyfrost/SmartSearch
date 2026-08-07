@@ -228,12 +228,12 @@ object SmartSearchConfig : Config(
     var lexicalFuzzyPrefixLength: Int = SearchParams.DEFAULT.lexicalFuzzyPrefixLength
 
     @Number(
-        title = "Fuzzy Search Prefix Expansions",
-        description = "In fuzzy search how many prefix completions are tried to evaluate and score.",
+        title = "Search Prefix Expansions",
+        description = "In search-as-you-type search how many prefix completions are tried to evaluate and score.",
         category = "Advanced",
         subcategory = "Lexical",
         min = 0f,
-        max = 4f
+        max = 256f
     )
     var lexicalPrefixExpansions: Int = SearchParams.DEFAULT.lexicalPrefixExpansions
 

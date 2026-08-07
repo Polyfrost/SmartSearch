@@ -19,7 +19,7 @@ object ModelController {
     val state: State
         get() = stateRef.get()
 
-    suspend fun init(modelFactory: EmbeddingModelFactory, onLoaded: (suspend (model: EmbeddingModel) -> Unit)? = null) {
+    fun init(modelFactory: EmbeddingModelFactory) {
         if (!stateRef.compareAndSet(State.NOT_LOADED, State.LOADING)) {
             return
         }
@@ -29,8 +29,7 @@ object ModelController {
             model = modelFactory.create()
             stateRef.set(State.LOADED)
             SmartSearchClient.LOGGER.info("Loaded embedding model in ${System.currentTimeMillis() - start}ms")
-            onLoaded?.invoke(model)
-        } catch (e: UnsatisfiedLinkError) {
+        } catch (e: LinkageError) {
             stateRef.set(State.NO_NATIVES)
             SmartSearchClient.LOGGER.warn("Failed to load native libraries", e)
         } catch (e: Exception) {

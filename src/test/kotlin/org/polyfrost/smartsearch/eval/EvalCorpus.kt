@@ -61,6 +61,7 @@ object EvalCorpus {
         this == "mods" -> SearchScope.Mods
         this == "options" -> SearchScope.Options
         this == "keybinds" -> SearchScope.Keybinds
+        this == "huds" -> SearchScope.Huds
         startsWith("config:") -> SearchScope.Config(removePrefix("config:"))
         else -> error("Unknown scope key '$this'")
     }

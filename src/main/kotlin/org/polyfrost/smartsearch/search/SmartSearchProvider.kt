@@ -4,6 +4,7 @@ import org.polyfrost.oneconfig.internal.ui.search.SearchCorpus
 import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
 import org.polyfrost.oneconfig.internal.ui.search.SearchProvider
 import org.polyfrost.oneconfig.internal.ui.search.SearchScope
+import org.polyfrost.smartsearch.SmartSearchClient
 import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.index.DataStore
 import org.polyfrost.smartsearch.index.SearchIndex
@@ -38,6 +39,7 @@ object SmartSearchProvider : SearchProvider {
         added: List<SearchDocument<*>>,
         removed: Set<String>
     ) {
+        Embedder.dropQueued(removed)
         Embedder.queueEmbedding(DataStore.ingest(added))
         DataStore.updateTrackedStaleEntries()
     }
@@ -49,6 +51,8 @@ object SmartSearchProvider : SearchProvider {
             ModelController.getModel().embed(
                 ModelController.getQueryPrefix() + query
             ).content().vector()
+        }.onFailure { e ->
+            SmartSearchClient.LOGGER.error("Error while searching $query", e)
         }.getOrNull()
     }
 }

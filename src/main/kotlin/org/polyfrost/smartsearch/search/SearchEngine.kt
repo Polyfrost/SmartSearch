@@ -236,6 +236,7 @@ object SearchEngine {
                 BooleanClause.Occur.SHOULD,
             )
         } else if (!partial) {
+            // No lexical exact boost since with just the exact there is no overlap with fuzzy/partial
             return exact
         }
 

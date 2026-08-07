@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "org.polyfrost"
-version = "1.0.0+alpha2"
+version = "1.0.0+alpha3"
 
 repositories {
     mavenCentral()

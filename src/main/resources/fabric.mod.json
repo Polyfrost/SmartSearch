@@ -3,10 +3,10 @@
   "id": "smartsearch",
   "version": "${version}",
   "name": "SmartSearch",
-  "environment": "*",
+  "environment": "client",
   "depends": {
     "java": ">=21",
-    "oneconfigv1": "1.1.2+SEARCH"
+    "oneconfigv1": ">=1.1.4"
   },
   "authors": [
     "Polyfrost",
