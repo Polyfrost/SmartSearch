@@ -14,16 +14,16 @@ import org.apache.lucene.document.TextField
 import org.apache.lucene.index.IndexReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
+import org.apache.lucene.index.LeafReader
 import org.apache.lucene.index.Term
 import org.apache.lucene.index.VectorSimilarityFunction
-import org.apache.lucene.search.BooleanClause
-import org.apache.lucene.search.BooleanQuery
+import org.apache.lucene.search.DocIdSetIterator
 import org.apache.lucene.search.FieldExistsQuery
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.search.SearcherManager
-import org.apache.lucene.search.TermQuery
 import org.apache.lucene.store.Directory
 import org.apache.lucene.store.FSDirectory
+import org.apache.lucene.util.FixedBitSet
 import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
 import org.polyfrost.oneconfig.internal.ui.search.SearchScope
 import org.polyfrost.smartsearch.SmartSearchClient
@@ -56,6 +56,9 @@ open class SearchIndex(path: Path) {
     /** How much of the index is written, as of the last commit */
     data class Stats(val documents: Int, val embedded: Int)
 
+    /** Used to track what an index already holds */
+    private data class StoredEntry(val hash: String, val hasEmbedding: Boolean)
+
     private val directory: Directory = FSDirectory.open(path)
 
     // Split index and query analyzer, this helps us split words like "OverflowParticles" during indexing
@@ -77,6 +80,8 @@ open class SearchIndex(path: Path) {
     @Volatile
     var status: Status = Status.READY
         private set
+
+    private val statsLock = Any()
 
     @Volatile
     var stats: Stats = Stats(0, 0)
@@ -100,10 +105,11 @@ open class SearchIndex(path: Path) {
                         val start = System.currentTimeMillis()
                         var addedCount = 0
                         var updatedCount = 0
+                        val existing = snapshotEntries(searcher)
 
                         val toEmbed: MutableList<SearchDocument<*>> = mutableListOf()
                         for (doc in added) {
-                            val entryStatus = checkStatus(searcher, doc)
+                            val entryStatus = checkStatus(existing, doc)
                             if (entryStatus != EntryStatus.EXISTS) {
                                 toEmbed.add(doc)
                             }
@@ -168,14 +174,26 @@ open class SearchIndex(path: Path) {
         }
     }
 
+    /**
+     * Writes the vectors in [embeddings] and makes them searchable, without committing.
+     *
+     * After you are done adding embeddings call flush to write the entries to disk
+     */
     fun addEmbeddings(embeddings: Map<SearchDocument<*>, Embedding>) {
+        if (embeddings.isEmpty()) return
         whileOpen {
             embeddings.forEach { (doc, embedding) ->
                 val newDoc = buildDocument(doc, embedding)
                 writer.updateDocument(Term("id", doc.id), newDoc)
             }
-            commitAndRefresh()
+            searcherManager.maybeRefreshBlocking()
+            synchronized(statsLock) { stats = stats.copy(embedded = stats.embedded + embeddings.size) }
         }
+    }
+
+    /** Commits everything written since the last commit, and re-reads stats */
+    fun flush() {
+        whileOpen { commitAndRefresh() }
     }
 
     /**
@@ -210,7 +228,7 @@ open class SearchIndex(path: Path) {
     }
 
     private fun refreshStats() {
-        stats = runCatching {
+        val fresh = runCatching {
             withSearcher { searcher ->
                 Stats(searcher.indexReader.numDocs(), searcher.count(FieldExistsQuery("embedding")))
             }
@@ -218,31 +236,50 @@ open class SearchIndex(path: Path) {
             SmartSearchClient.LOGGER.warn("Failed to read index stats", it)
             return
         }
+        synchronized(statsLock) { stats = fresh }
     }
 
-    private fun checkStatus(searcher: IndexSearcher, document: SearchDocument<*>): EntryStatus {
-        // Get entry
-        val idTerm = Term("id", document.id)
-        val hits = searcher.search(TermQuery(idTerm), 1)
-        if (hits.totalHits.value == 0L) {
-            return EntryStatus.NOT_EXISTS
+    /**
+     * Reads the id, content hash and embedding presence of every live document in one pass.
+     */
+    private fun snapshotEntries(searcher: IndexSearcher): Map<String, StoredEntry> {
+        val entries = HashMap<String, StoredEntry>(searcher.indexReader.numDocs())
+        val wanted = setOf("id", "content_hash")
+
+        for (leaf in searcher.indexReader.leaves()) {
+            val reader = leaf.reader()
+            val embedded = embeddedDocs(reader)
+            val storedFields = reader.storedFields()
+            val liveDocs = reader.liveDocs
+            for (docId in 0 until reader.maxDoc()) {
+                if (liveDocs?.get(docId) == false) continue // skip already deleted docs
+                val doc = storedFields.document(docId, wanted)
+                val id = doc.get("id") ?: continue
+                val hash = doc.get("content_hash") ?: continue
+                entries[id] = StoredEntry(hash, embedded.get(docId))
+            }
         }
-        // Check hash match
-        val doc = searcher.storedFields().document(hits.scoreDocs.first().doc)
-        if (doc.get("content_hash") != document.hash()) {
-            return EntryStatus.STALE
+
+        return entries
+    }
+
+    /** Check what documents have an embedding */
+    private fun embeddedDocs(reader: LeafReader): FixedBitSet {
+        val bits = FixedBitSet(reader.maxDoc())
+        val vectors = reader.getFloatVectorValues("embedding") ?: return bits
+        val iterator = vectors.iterator()
+        var docId = iterator.nextDoc()
+        while (docId != DocIdSetIterator.NO_MORE_DOCS) {
+            bits.set(docId)
+            docId = iterator.nextDoc()
         }
-        // Check embed status
-        if (searcher.search(
-                BooleanQuery.Builder()
-                    .add(TermQuery(idTerm), BooleanClause.Occur.MUST)
-                    .add(FieldExistsQuery("embedding"), BooleanClause.Occur.MUST)
-                    .build(),
-                1
-            ).totalHits.value == 0L
-        ) {
-            return EntryStatus.NEEDS_EMBEDDING
-        }
+        return bits
+    }
+
+    private fun checkStatus(existing: Map<String, StoredEntry>, document: SearchDocument<*>): EntryStatus {
+        val entry = existing[document.id] ?: return EntryStatus.NOT_EXISTS
+        if (entry.hash != document.hash()) return EntryStatus.STALE
+        if (!entry.hasEmbedding) return EntryStatus.NEEDS_EMBEDDING
         return EntryStatus.EXISTS
     }
 

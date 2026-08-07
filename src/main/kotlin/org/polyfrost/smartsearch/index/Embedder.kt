@@ -77,6 +77,8 @@ object Embedder {
                 SmartSearchClient.LOGGER.info("Embedding finished in ${System.currentTimeMillis() - start}ms")
             } finally {
                 synchronized(queueLock) { inFlight.clear() }
+                // Commit all batches
+                DataStore.flush()
                 isRunning.set(false)
             }
 

@@ -28,6 +28,7 @@ object EvalIndex {
             .forEach { batch ->
                 index.addEmbeddings(batch.associateWith { Embedding(vectors.getValue(it.id)) })
             }
+        index.flush()
 
         val stats = index.stats
         println("[eval] index ready: ${stats.documents} documents, ${stats.embedded} embedded, ${System.currentTimeMillis() - start}ms")
