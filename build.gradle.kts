@@ -1,5 +1,6 @@
 import net.fabricmc.loom.build.nesting.NestableJarGenerationTask
 import de.undercouch.gradle.tasks.download.Download
+import de.undercouch.gradle.tasks.download.Verify
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -79,18 +80,34 @@ tasks.test {
     }
 }
 
+val embeddingModelFiles = mapOf(
+    "onnx/model_int8.onnx" to "e6aa5e656466a73d7c3111e9a3378bd13e5b93af30eaac2b3f13fd56692589a1",
+    "tokenizer.json" to "91f1def9b9391fdabe028cd3f3fcc4efd34e5d1f08c3bf2de513ebb5911a1854",
+)
+val embeddingModelDir = layout.buildDirectory.dir("downloaded-models/models/arctic-embed-xs")
+
 val downloadEmbeddingModel by tasks.registering(Download::class) {
     // Download the model used
-    src(
-        listOf(
-            "https://huggingface.co/Snowflake/snowflake-arctic-embed-xs/resolve/main/onnx/model_int8.onnx",
-            "https://huggingface.co/Snowflake/snowflake-arctic-embed-xs/resolve/main/tokenizer.json"
-        )
-    )
-    dest(layout.buildDirectory.dir("downloaded-models/models/arctic-embed-xs"))
+    src(embeddingModelFiles.keys.map { "https://huggingface.co/Snowflake/snowflake-arctic-embed-xs/resolve/main/$it" })
+    dest(embeddingModelDir)
     overwrite(false)
     onlyIfModified(true)
     tempAndMove(true)
+}
+
+// Verify the hashes of the downloaded model
+val verifyEmbeddingModel by tasks.registering {
+    dependsOn(downloadEmbeddingModel)
+}
+for ((path, sha256) in embeddingModelFiles) {
+    val name = path.substringAfterLast('/')
+    val verifyTask = tasks.register<Verify>("verifyEmbeddingModel${name.replaceFirstChar { it.uppercase() }}") {
+        dependsOn(downloadEmbeddingModel)
+        src(embeddingModelDir.map { it.file(name) }.get().asFile)
+        algorithm("SHA-256")
+        checksum(sha256)
+    }
+    verifyEmbeddingModel { dependsOn(verifyTask) }
 }
 
 sourceSets.main {
@@ -100,7 +117,7 @@ sourceSets.main {
 }
 
 tasks.processResources {
-    dependsOn(downloadEmbeddingModel)
+    dependsOn(verifyEmbeddingModel)
 
     inputs.property("version", project.version)
     filesMatching("fabric.mod.json") {
