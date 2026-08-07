@@ -15,6 +15,9 @@ private val WORD_TERMINATOR = Regex("[\\s_\\-.]+")
 /** Every indexed text field, in the order their boosts are listed in [SearchParams]. */
 private val SEARCH_FIELDS = listOf("title", "description", "mod", "context", "tags")
 
+/** IDs of mods options we derank to prevent them polluting search */
+private val DERANKED_IDS = listOf("soundtweaks.json")
+
 object SearchEngine {
     /**
      * One side of the search before fusing, [zero] notes the zero point of this arm for scoring
@@ -65,9 +68,11 @@ object SearchEngine {
                 Arm(semantic, weight = semanticWeight(query, params), zero = params.minKnnScore),
             ).mapNotNull { doc ->
                 storedFields.document(doc, setOf("id")).get("id")
-            }
+            }.sortedBy { it.isDeranked() } // Move deranked to bottom
         }.orEmpty()
     }
+
+    private fun String.isDeranked(): Boolean = DERANKED_IDS.any { startsWith("$it::") }
 
     /**
      * Drop hits scoring less then [floor]
