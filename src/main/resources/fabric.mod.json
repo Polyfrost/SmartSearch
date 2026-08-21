@@ -6,7 +6,7 @@
   "environment": "client",
   "depends": {
     "java": ">=21",
-    "oneconfigv1": ">=1.1.4"
+    "oneconfigv1": ">=1.1.7"
   },
   "authors": [
     "Polyfrost",

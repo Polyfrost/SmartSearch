@@ -10,10 +10,11 @@ plugins {
     kotlin("plugin.compose") version "2.4.0"
     id("net.fabricmc.fabric-loom")
     id("de.undercouch.download") version "5.7.0"
+    id("me.modmuss50.mod-publish-plugin") version "2.2.0"
 }
 
 group = "org.polyfrost"
-version = "1.0.0+alpha3"
+version = "1.0.0"
 
 repositories {
     mavenCentral()
@@ -28,13 +29,19 @@ repositories {
     maven("https://maven.terraformersmc.com/releases/") {
         content { includeGroup("com.terraformersmc") }
     }
+    maven("https://repo.hypixel.net/repository/Hypixel/") {
+        content { includeGroup("net.hypixel") }
+    }
+    maven("https://api.modrinth.com/maven") {
+        content { includeGroup("maven.modrinth") }
+    }
 }
 
 dependencies {
     minecraft("com.mojang:minecraft:26.2")
     implementation("net.fabricmc:fabric-loader:0.19.3")
 
-    val oneConfigVersion = "1.1.2+SEARCH2"
+    val oneConfigVersion = "1.1.7"
     runtimeOnly("org.polyfrost.oneconfig:26.2-fabric:$oneConfigVersion")
     for (module in listOf("config", "config-impl", "events", "internal")) {
         implementation("org.polyfrost.oneconfig:$module:$oneConfigVersion")
@@ -158,5 +165,30 @@ tasks.named("processIncludeJars") {
             }
             stripped.delete()
         }
+    }
+}
+
+val modrinthToken = listOf("oneconfig.publish.modrinth.token", "publish.modrinth.token", "modrinth.token")
+    .firstNotNullOfOrNull { findProperty(it) }?.toString()?.takeIf { it.isNotBlank() }
+
+publishMods {
+    file = tasks.named<Jar>("jar").flatMap { it.archiveFile }
+
+    displayName = project.version.toString()
+    version = "v${project.version}"
+    changelog = rootProject.file("CHANGELOG.md").takeIf { it.exists() }?.readText() ?: "No changelog provided."
+    type = STABLE
+
+    modLoaders.add("fabric")
+
+    dryRun = modrinthToken == null
+
+    modrinth {
+        projectId = "N5EQhK31"
+        accessToken = modrinthToken.orEmpty()
+
+        minecraftVersions.addAll("1.21.1", "1.21.4", "1.21.5", "1.21.8", "1.21.10", "1.21.11", "26.1", "26.1.1", "26.1.2", "26.2")
+
+        requires("oneconfig")
     }
 }
