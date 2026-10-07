@@ -4,7 +4,6 @@ import org.polyfrost.oneconfig.api.config.v1.Config
 import org.polyfrost.oneconfig.api.config.v1.Properties
 import org.polyfrost.oneconfig.api.config.v1.Tree
 import org.polyfrost.oneconfig.api.config.v1.annotations.Button
-import org.polyfrost.oneconfig.api.config.v1.annotations.Include
 import org.polyfrost.oneconfig.api.config.v1.annotations.Number
 import org.polyfrost.oneconfig.api.config.v1.annotations.Switch
 import org.polyfrost.smartsearch.SmartSearchClient
@@ -13,6 +12,9 @@ import org.polyfrost.smartsearch.search.SearchParams
 import org.polyfrost.smartsearch.ui.IndexerStatusVisualizer
 import org.polyfrost.smartsearch.util.DocumentExporter
 import java.io.File
+import java.nio.file.Path
+import java.security.MessageDigest
+import kotlin.io.path.Path
 
 object SmartSearchConfig : Config(
     "smartsearch.json",
@@ -32,6 +34,15 @@ object SmartSearchConfig : Config(
                 "this activates an ML embedding model to help with searches."
     )
     var enableSemantic: Boolean = true
+
+    fun dbPath(): Path {
+        // Make the folder in a hashed subdirectory, so for OneClient, if the mods folder is overwritten
+        // it will get a unique folder per instance
+        val folder = Path("smartsearch-db")
+        val modsFolder = (System.getProperty("fabric.modsFolder") ?: "mods")
+        val folderHash = MessageDigest.getInstance("MD5").digest(modsFolder.toByteArray())
+        return folder.resolve(folderHash.toHexString())
+    }
 
     @Button(
         title = "Clean database",
@@ -317,13 +328,6 @@ object SmartSearchConfig : Config(
         max = 3f,
     )
     var maxKnnWeight: Float = SearchParams.DEFAULT.maxKnnWeight
-
-    /**
-     * Keep track of stale config entries (mods/config options that were removed),
-     * the ID of an entry paired with the amount of launches left before it is removed from the database.
-     */
-    @Include
-    var staleEntries: StaleEntries = StaleEntries()
 
     override fun makeTree(): Tree {
         // Put at the top
