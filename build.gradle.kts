@@ -212,3 +212,7 @@ publishMods {
         minecraftVersions.add("1.8.9")
     }
 }
+
+tasks.register("publishModrinth") {
+    dependsOn("publishModrinthFabric", "publishModrinthOrnithe")
+}
