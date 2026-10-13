@@ -1,6 +1,8 @@
 package org.polyfrost.smartsearch.index
 
+import kotlinx.coroutines.launch
 import org.polyfrost.oneconfig.internal.ui.search.SearchCorpus
+import org.polyfrost.smartsearch.SmartSearchClient
 import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.config.StaleEntries
 
@@ -9,6 +11,10 @@ object DataStore : SearchIndex(SmartSearchConfig.dbPath()) {
     /** Amount of launches an entry needs to be unseen before it's removed */
     private const val LAUNCHES_BEFORE_REMOVAL = 2
     val staleEntries: StaleEntries = StaleEntries.load()
+
+    override fun onRebuilt() {
+        SmartSearchClient.scope.launch { Embedder.queueEmbedding(ingest(SearchCorpus.corpus.values.toList())) }
+    }
 
     /** Drops every indexed document whose id is not in [keep]. */
     fun clean(keep: Set<String> = SearchCorpus.corpus.keys) {

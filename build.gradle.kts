@@ -187,7 +187,7 @@ val ornitheJar by tasks.registering(Zip::class) {
 tasks.assemble { dependsOn(ornitheJar) }
 
 publishMods {
-    displayName = project.version
+    displayName = project.version.toString()
     version = "v${project.version}"
     changelog = rootProject.file("CHANGELOG.md").takeIf { it.exists() }?.readText() ?: "No changelog provided."
     type = STABLE

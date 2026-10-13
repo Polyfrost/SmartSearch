@@ -11,6 +11,11 @@ import org.apache.lucene.document.Field
 import org.apache.lucene.document.KnnFloatVectorField
 import org.apache.lucene.document.StringField
 import org.apache.lucene.document.TextField
+import org.apache.lucene.index.CorruptIndexException
+import org.apache.lucene.index.IndexFileNames
+import org.apache.lucene.index.IndexFormatTooNewException
+import org.apache.lucene.index.IndexFormatTooOldException
+import org.apache.lucene.index.IndexNotFoundException
 import org.apache.lucene.index.IndexReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
@@ -21,17 +26,25 @@ import org.apache.lucene.search.DocIdSetIterator
 import org.apache.lucene.search.FieldExistsQuery
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.search.SearcherManager
+import org.apache.lucene.store.ByteBuffersDirectory
 import org.apache.lucene.store.Directory
 import org.apache.lucene.store.FSDirectory
+import org.apache.lucene.store.LockObtainFailedException
 import org.apache.lucene.util.FixedBitSet
 import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
 import org.polyfrost.oneconfig.internal.ui.search.SearchScope
 import org.polyfrost.smartsearch.SmartSearchClient
 import org.polyfrost.smartsearch.cache.CacheStore
 import org.polyfrost.smartsearch.cache.EmbeddingCache
+import java.io.EOFException
+import java.io.FileNotFoundException
 import java.security.MessageDigest
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.io.path.deleteExisting
+import kotlin.io.path.listDirectoryEntries
+import kotlin.io.path.name
 import kotlin.concurrent.write
 
 /**
@@ -46,10 +59,12 @@ private enum class EntryStatus {
     NEEDS_EMBEDDING,
 }
 
+private val LUCENE_PACKAGE: String = IndexWriter::class.java.name.removeSuffix("index.IndexWriter")
+
 /**
  * A Lucene index over the search corpus, living at [path].
  */
-open class SearchIndex(path: Path) {
+open class SearchIndex(private val path: Path) {
     enum class Status {
         READY,
         INGESTING
@@ -61,17 +76,20 @@ open class SearchIndex(path: Path) {
     /** Used to track what an index already holds */
     private data class StoredEntry(val hash: String, val hasEmbedding: Boolean)
 
-    private val directory: Directory = FSDirectory.open(path)
+    private class Opened(val directory: Directory, val writer: IndexWriter, val searcherManager: SearcherManager)
 
     // Split index and query analyzer, this helps us split words like "OverflowParticles" during indexing
     private val indexAnalyzer: Analyzer = SearchAnalyzer(splitCompounds = true)
     private val queryAnalyzer: Analyzer = SearchAnalyzer(splitCompounds = false)
-    private val config: IndexWriterConfig = IndexWriterConfig(indexAnalyzer)
-    private val writer: IndexWriter = IndexWriter(directory, config).apply {
-        commit()  // Create db file
-    }
-    private val searcherManager: SearcherManager = SearcherManager(writer, null)
+
+    @Volatile
+    private var opened: Opened = open(path)
+    private val directory: Directory get() = opened.directory
+    private val writer: IndexWriter get() = opened.writer
+    private val searcherManager: SearcherManager get() = opened.searcherManager
     private val ingestMutex = Mutex()
+
+    private var rebuilt = false
 
     /** Held for reading while the index is in use, and for writing by [close] */
     private val lifecycleLock = ReentrantReadWriteLock()
@@ -92,6 +110,100 @@ open class SearchIndex(path: Path) {
     init {
         refreshStats()
     }
+
+    private fun open(path: Path): Opened {
+        try {
+            return open(FSDirectory.open(path))
+        } catch (e: LockObtainFailedException) {
+            SmartSearchClient.LOGGER.warn("Search index at $path is in use by another instance")
+        } catch (e: Exception) {
+            if (!isCorruption(e)) {
+                SmartSearchClient.LOGGER.warn("Failed to open search index at $path", e)
+            } else {
+                SmartSearchClient.LOGGER.warn("Search index at $path is unreadable, rebuilding it", e)
+                try {
+                    wipe(path)
+                    return open(FSDirectory.open(path))
+                } catch (rebuildError: Exception) {
+                    SmartSearchClient.LOGGER.warn("Failed to rebuild search index at $path", rebuildError)
+                }
+            }
+        }
+        SmartSearchClient.LOGGER.warn("Keeping the search index in memory for this session")
+        return open(ByteBuffersDirectory())
+    }
+
+    private fun isCorruption(e: Throwable?): Boolean = generateSequence(e) { it.cause }.any {
+        it is CorruptIndexException || it is IndexFormatTooOldException || it is IndexFormatTooNewException ||
+            it is IndexNotFoundException || isUnknownCodec(it) ||
+            ((it is EOFException || it is NoSuchFileException || it is FileNotFoundException) && thrownByLucene(it))
+    }
+
+    private fun thrownByLucene(e: Throwable): Boolean = e.stackTrace.any { it.className.startsWith(LUCENE_PACKAGE) }
+
+    private fun isUnknownCodec(e: Throwable?): Boolean =
+        e is IllegalArgumentException && e.message?.contains("SPI class") == true
+
+    private fun wipe(path: Path) {
+        FSDirectory.open(path).use { directory ->
+            directory.obtainLock(IndexWriter.WRITE_LOCK_NAME).use {
+                for (file in path.listDirectoryEntries()) {
+                    val name = file.name
+                    if (name.startsWith(IndexFileNames.SEGMENTS) || name.startsWith(IndexFileNames.PENDING_SEGMENTS) ||
+                        IndexFileNames.CODEC_FILE_PATTERN.matcher(name).matches()
+                    ) file.deleteExisting()
+                }
+            }
+        }
+    }
+
+    private fun open(directory: Directory): Opened {
+        try {
+            val writer = IndexWriter(directory, IndexWriterConfig(indexAnalyzer))
+            try {
+                writer.commit()
+                return Opened(directory, writer, SearcherManager(writer, null))
+            } catch (e: Throwable) {
+                runCatching { writer.rollback() }.onFailure(e::addSuppressed)
+                throw e
+            }
+        } catch (e: Throwable) {
+            runCatching { directory.close() }.onFailure(e::addSuppressed)
+            throw e
+        }
+    }
+
+    private fun rebuild(attempted: Opened, e: Exception): Boolean {
+        if (!isCorruption(e) && !isCorruption(attempted.writer.tragicException)) return false
+        if (lifecycleLock.readHoldCount > 0) return false
+        lifecycleLock.write {
+            if (closed) return false
+            if (opened !== attempted) return true
+
+            SmartSearchClient.LOGGER.warn("Search index at $path is damaged, rebuilding it", e)
+            runCatching { attempted.searcherManager.close() }
+            runCatching { attempted.writer.rollback() }
+            runCatching { attempted.directory.close() }
+            closed = true
+            opened = if (rebuilt || attempted.directory !is FSDirectory) {
+                SmartSearchClient.LOGGER.warn("Search index at $path was damaged again, keeping it in memory for this session")
+                open(ByteBuffersDirectory())
+            } else try {
+                wipe(path)
+                open(FSDirectory.open(path))
+            } catch (rebuildError: Exception) {
+                SmartSearchClient.LOGGER.warn("Failed to rebuild search index at $path, keeping it in memory for this session", rebuildError)
+                open(ByteBuffersDirectory())
+            }
+            rebuilt = true
+            closed = false
+            refreshStats()
+            onRebuilt()
+            return true
+        }
+    }
+
+    protected open fun onRebuilt() {}
 
     /**
      * Writes every document in [added] whose indexed text is new or has changed.
@@ -122,13 +234,8 @@ open class SearchIndex(path: Path) {
                                 || (entryStatus == EntryStatus.NEEDS_EMBEDDING && cachedEmbedding != null)
                             ) {
                                 val newDoc = buildDocument(doc, cachedEmbedding, contentHash = contentHash)
-                                if (entryStatus == EntryStatus.NOT_EXISTS) {
-                                    writer.addDocument(newDoc)
-                                    addedCount++
-                                } else {
-                                    writer.updateDocument(Term("id", doc.id), newDoc)
-                                    updatedCount++
-                                }
+                                writer.updateDocument(Term("id", doc.id), newDoc)
+                                if (entryStatus == EntryStatus.NOT_EXISTS) addedCount++ else updatedCount++
                             }
                         }
                         commitAndRefresh()
@@ -236,6 +343,16 @@ open class SearchIndex(path: Path) {
      * returns null if the index is already closed.
      */
     private inline fun <T> whileOpen(block: () -> T): T? {
+        val attempted = opened
+        try {
+            return locked(block)
+        } catch (e: Exception) {
+            if (!rebuild(attempted, e)) throw e
+        }
+        return locked(block)
+    }
+
+    private inline fun <T> locked(block: () -> T): T? {
         lifecycleLock.readLock().lock()
         try {
             if (closed) return null
