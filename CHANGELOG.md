@@ -1,3 +1,2 @@
-## 1.2.0
-- Fixed not being able to search for "hurtcam" to get "BetterHurtCam" (and cases like it)
-- Fixed multiple OneClient instances using the same database
+## 1.2.1
+- Fix not recovering from corrupted files
