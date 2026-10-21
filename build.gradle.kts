@@ -6,8 +6,8 @@ import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
 plugins {
-    kotlin("jvm") version "2.4.0"
-    kotlin("plugin.compose") version "2.4.0"
+    kotlin("jvm") version "2.4.20"
+    kotlin("plugin.compose") version "2.4.20"
     id("net.fabricmc.fabric-loom")
     id("de.undercouch.download") version "5.7.0"
     id("me.modmuss50.mod-publish-plugin") version "2.2.0"
@@ -41,7 +41,7 @@ dependencies {
     minecraft("com.mojang:minecraft:26.3")
     implementation("net.fabricmc:fabric-loader:0.19.3")
 
-    val oneConfigVersion = "1.2.7"
+    val oneConfigVersion = "1.5.0"
     runtimeOnly("org.polyfrost.oneconfig:26.3-fabric:$oneConfigVersion")
     for (module in listOf("config", "config-impl", "events", "internal")) {
         implementation("org.polyfrost.oneconfig:$module:$oneConfigVersion")
