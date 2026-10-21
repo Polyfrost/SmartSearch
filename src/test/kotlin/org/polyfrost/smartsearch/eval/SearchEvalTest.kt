@@ -1,5 +1,8 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.eval
 
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
 import org.polyfrost.smartsearch.search.SearchParams
 import kotlin.io.path.Path
 import kotlin.io.path.createDirectories

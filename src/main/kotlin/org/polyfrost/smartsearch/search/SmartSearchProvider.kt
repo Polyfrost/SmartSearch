@@ -1,9 +1,12 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.search
 
-import org.polyfrost.oneconfig.internal.ui.search.SearchCorpus
-import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
-import org.polyfrost.oneconfig.internal.ui.search.SearchProvider
-import org.polyfrost.oneconfig.internal.ui.search.SearchScope
+import kotlinx.coroutines.runBlocking
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchDocument
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchProvider
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchScope
 import org.polyfrost.smartsearch.SmartSearchClient
 import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.index.DataStore
@@ -11,36 +14,26 @@ import org.polyfrost.smartsearch.index.SearchIndex
 import org.polyfrost.smartsearch.index.Embedder
 import org.polyfrost.smartsearch.model.ModelController
 
-object SmartSearchProvider : SearchProvider {
+object SmartSearchProvider : SearchProvider() {
     override val priority: Int = 1
 
     override fun isAvailable(): Boolean {
         return DataStore.status == SearchIndex.Status.READY && SmartSearchConfig.enabled
     }
 
-    override fun <T> searchGrouped(
-        query: String,
-        scopes: Set<SearchScope>,
-        grouper: (SearchDocument<*>) -> T
-    ): Map<T, List<SearchDocument<*>>> {
-        return search(query, scopes).groupBy(grouper)
-    }
-
     override fun search(
         query: String,
         scopes: Set<SearchScope>
-    ): List<SearchDocument<*>> {
-        val corpus = SearchCorpus.corpus
+    ): List<String> {
         return SearchEngine.rank(DataStore, query, scopes, SmartSearchConfig.params, ::embed)
-            .mapNotNull { corpus[it] }
     }
 
-    override suspend fun onCorpusUpdate(
-        added: List<SearchDocument<*>>,
+    override fun onCorpusUpdate(
+        added: List<SearchDocument>,
         removed: Set<String>
     ) {
         Embedder.dropQueued(removed)
-        Embedder.queueEmbedding(DataStore.ingest(added))
+        Embedder.queueEmbedding(runBlocking { DataStore.ingest(added) })
         DataStore.updateTrackedStaleEntries()
     }
 

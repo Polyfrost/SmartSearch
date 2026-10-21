@@ -1,8 +1,11 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.index
 
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchDocument
 import org.polyfrost.smartsearch.SmartSearchClient
 import org.polyfrost.smartsearch.cache.CacheStore
 import org.polyfrost.smartsearch.config.SmartSearchConfig
@@ -15,7 +18,7 @@ object Embedder {
     /** Skip embedding sound tweak options, adds barely any quality and adds like 3k embeddings */
     private val SKIPPED_IDS: Set<String> = setOf("soundtweaks.json::")
 
-    private val toEmbed: MutableMap<String, SearchDocument<*>> = LinkedHashMap()
+    private val toEmbed: MutableMap<String, SearchDocument> = LinkedHashMap()
 
     /** Every document currently being embedded in this batch */
     private val inFlight: MutableMap<String, String> = HashMap()
@@ -25,7 +28,7 @@ object Embedder {
 
     private val isRunning = AtomicBoolean(false)
 
-    fun queueEmbedding(toEmbed: List<SearchDocument<*>>) {
+    fun queueEmbedding(toEmbed: List<SearchDocument>) {
         synchronized(queueLock) {
             for (doc in toEmbed) {
                 if (SKIPPED_IDS.any { doc.id.startsWith(it) }) continue
@@ -63,7 +66,7 @@ object Embedder {
         DataStore.flush()
     }
 
-    private fun takeBatch(): List<SearchDocument<*>> = synchronized(queueLock) {
+    private fun takeBatch(): List<SearchDocument> = synchronized(queueLock) {
         val batch = toEmbed.values.take(BATCH_SIZE)
         inFlight.clear()
         for (doc in batch) {
@@ -121,7 +124,7 @@ object Embedder {
  */
 private val skippedDescriptionPrefixes = listOf("Internal ID:")
 
-internal fun embeddingText(doc: SearchDocument<*>): String = buildString {
+internal fun embeddingText(doc: SearchDocument): String = buildString {
     addNotNull(doc.metadata.title)
     val categories = listOfNotNull(
         // Filter out default "general", it doesn't provide any useful info

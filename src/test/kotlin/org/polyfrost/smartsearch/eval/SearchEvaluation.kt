@@ -1,5 +1,8 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.eval
 
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
 import org.polyfrost.smartsearch.search.SearchEngine
 import org.polyfrost.smartsearch.search.SearchParams
 

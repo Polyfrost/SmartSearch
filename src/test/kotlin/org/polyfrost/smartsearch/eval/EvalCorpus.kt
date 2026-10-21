@@ -1,10 +1,14 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.eval
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
-import org.polyfrost.oneconfig.internal.ui.search.SearchMetadata
-import org.polyfrost.oneconfig.internal.ui.search.SearchScope
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
+import org.polyfrost.oneconfig.api.ui.v1.internal.SearchInterop
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchDocument
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchMetadata
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchScope
 
 private const val FIXTURE = "/smartsearch-documents.json"
 
@@ -13,9 +17,9 @@ private const val FIXTURE = "/smartsearch-documents.json"
  */
 object EvalCorpus {
 
-    val documents: List<SearchDocument<Unit>> by lazy { load() }
+    val documents: List<SearchDocument> by lazy { load() }
 
-    val byId: Map<String, SearchDocument<Unit>> by lazy { documents.associateBy { it.id } }
+    val byId: Map<String, SearchDocument> by lazy { documents.associateBy { it.id } }
 
     /** Titles shared by more than one document. Generated queries avoid these, as no single answer would be right. */
     val ambiguousTitles: Set<String> by lazy {
@@ -25,23 +29,22 @@ object EvalCorpus {
             .keys
     }
 
-    private fun load(): List<SearchDocument<Unit>> {
+    private fun load(): List<SearchDocument> {
         val stream = EvalCorpus::class.java.getResourceAsStream(FIXTURE)
             ?: error("Missing evaluation fixture $FIXTURE")
         val array = stream.bufferedReader().use { JsonParser.parseReader(it) }.asJsonArray
 
         return array.map { element ->
             val obj = element.asJsonObject
-            SearchDocument(
+            SearchInterop.document(
                 id = obj["id"].asString,
                 scopes = obj["scopes"].asJsonArray.map { it.asString.toScope() }.toSet(),
                 metadata = obj["metadata"].asJsonObject.toMetadata(),
-                payload = Unit,
             )
         }
     }
 
-    private fun JsonObject.toMetadata() = SearchMetadata(
+    private fun JsonObject.toMetadata(): SearchMetadata = SearchInterop.metadata(
         title = string("title"),
         id = string("id"),
         description = string("description"),
@@ -58,11 +61,11 @@ object EvalCorpus {
         get(key)?.takeUnless { it.isJsonNull }?.asString
 
     private fun String.toScope(): SearchScope = when {
-        this == "mods" -> SearchScope.Mods
-        this == "options" -> SearchScope.Options
-        this == "keybinds" -> SearchScope.Keybinds
-        this == "huds" -> SearchScope.Huds
-        startsWith("config:") -> SearchScope.Config(removePrefix("config:"))
+        this == "mods" -> SearchScope.MODS
+        this == "options" -> SearchScope.OPTIONS
+        this == "keybinds" -> SearchScope.KEYBINDS
+        this == "huds" -> SearchScope.HUDS
+        startsWith("config:") -> SearchScope.config(removePrefix("config:"))
         else -> error("Unknown scope key '$this'")
     }
 }

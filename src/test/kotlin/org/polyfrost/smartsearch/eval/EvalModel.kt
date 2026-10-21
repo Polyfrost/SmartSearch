@@ -1,6 +1,9 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.eval
 
 import kotlinx.coroutines.runBlocking
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
 import org.polyfrost.smartsearch.index.embeddingText
 import org.polyfrost.smartsearch.model.ArcticEmbedXsFactory
 import org.polyfrost.smartsearch.model.ModelController

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.index
 
 import dev.langchain4j.data.embedding.Embedding
@@ -31,8 +33,9 @@ import org.apache.lucene.store.Directory
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.store.LockObtainFailedException
 import org.apache.lucene.util.FixedBitSet
-import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
-import org.polyfrost.oneconfig.internal.ui.search.SearchScope
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchDocument
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchScope
 import org.polyfrost.smartsearch.SmartSearchClient
 import org.polyfrost.smartsearch.cache.CacheStore
 import org.polyfrost.smartsearch.cache.EmbeddingCache
@@ -210,7 +213,7 @@ open class SearchIndex(private val path: Path) {
      *
      * Returns the documents still needing a vector, for the caller to hand to an embedder.
      */
-    suspend fun ingest(added: List<SearchDocument<*>>): List<SearchDocument<*>> = ingestMutex.withLock {
+    suspend fun ingest(added: List<SearchDocument>): List<SearchDocument> = ingestMutex.withLock {
         withContext(Dispatchers.IO) {
             whileOpen {
                 status = Status.INGESTING
@@ -221,7 +224,7 @@ open class SearchIndex(private val path: Path) {
                         var updatedCount = 0
                         val existing = snapshotEntries(searcher)
 
-                        val toEmbed: MutableList<SearchDocument<*>> = mutableListOf()
+                        val toEmbed: MutableList<SearchDocument> = mutableListOf()
                         for (doc in added) {
                             val entryStatus = checkStatus(existing, doc)
                             if (entryStatus == EntryStatus.EXISTS) continue
@@ -318,7 +321,7 @@ open class SearchIndex(private val path: Path) {
      *
      * After you are done adding embeddings call flush to write the entries to disk
      */
-    fun addEmbeddings(embeddings: Map<SearchDocument<*>, Embedding>) {
+    fun addEmbeddings(embeddings: Map<SearchDocument, Embedding>) {
         if (embeddings.isEmpty()) return
         whileOpen {
             embeddings.forEach { (doc, embedding) ->
@@ -428,7 +431,7 @@ open class SearchIndex(private val path: Path) {
         return bits
     }
 
-    private fun checkStatus(existing: Map<String, StoredEntry>, document: SearchDocument<*>): EntryStatus {
+    private fun checkStatus(existing: Map<String, StoredEntry>, document: SearchDocument): EntryStatus {
         val entry = existing[document.id] ?: return EntryStatus.NOT_EXISTS
         if (entry.hash != document.hash()) return EntryStatus.STALE
         if (!entry.hasEmbedding) return EntryStatus.NEEDS_EMBEDDING
@@ -436,7 +439,7 @@ open class SearchIndex(private val path: Path) {
     }
 
     private fun buildDocument(
-        entry: SearchDocument<*>,
+        entry: SearchDocument,
         embedding: Embedding? = null,
         contentHash: String = entry.hash()
     ): Document {
@@ -487,7 +490,7 @@ open class SearchIndex(private val path: Path) {
     }
 }
 
-internal fun SearchDocument<*>.hash(): String {
+internal fun SearchDocument.hash(): String {
     val md = MessageDigest.getInstance("MD5")
     val hashStr = buildString {
         append(SCHEMA_VERSION)
@@ -513,13 +516,7 @@ internal fun SearchDocument<*>.hash(): String {
     return digest.toHexString()
 }
 
-internal fun SearchScope.toKey(): String = when (this) {
-    is SearchScope.Mods -> "mods"
-    is SearchScope.Options -> "options"
-    is SearchScope.Keybinds -> "keybinds"
-    is SearchScope.Huds -> "huds"
-    is SearchScope.Config -> "config:${this.id}"
-}
+internal fun SearchScope.toKey(): String = key
 
 /**
  * The whole title as an indexable token

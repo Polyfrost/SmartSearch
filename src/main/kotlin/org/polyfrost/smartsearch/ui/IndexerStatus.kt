@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.ui
 
 import androidx.compose.foundation.layout.Arrangement
@@ -9,14 +11,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import org.polyfrost.oneconfig.api.config.v1.Visualizer
-import org.polyfrost.oneconfig.internal.ui.components.Text
-import org.polyfrost.oneconfig.internal.ui.themes.LocalTheme
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
+import org.polyfrost.oneconfig.api.ui.v1.components.Text
+import org.polyfrost.oneconfig.api.ui.v1.theme.OneConfigTheme
 import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.index.DataStore
 import org.polyfrost.smartsearch.index.SearchIndex
@@ -52,7 +59,7 @@ private data class IndexerSnapshot(
 
 @Composable
 private fun IndexerStatus() {
-    val theme = LocalTheme.current
+    val theme = OneConfigTheme.current
     var snapshot by remember { mutableStateOf(IndexerSnapshot.capture()) }
 
     LaunchedEffect(Unit) {
@@ -68,15 +75,27 @@ private fun IndexerStatus() {
     ) {
         Text(
             snapshot.headline(),
+            modifier = Modifier,
             color = snapshot.headlineColor(theme.textColor),
             fontSize = 14.sp,
+            lineHeight = null,
+            shift = BaselineShift.None,
+            fontWeight = FontWeight.Normal,
             textAlign = TextAlign.End,
+            maxLines = Int.MAX_VALUE,
+            overflow = TextOverflow.Clip,
         )
         Text(
             snapshot.detail(),
+            modifier = Modifier,
             color = theme.textColorSecondary,
             fontSize = 13.sp,
+            lineHeight = null,
+            shift = BaselineShift.None,
+            fontWeight = FontWeight.Normal,
             textAlign = TextAlign.End,
+            maxLines = Int.MAX_VALUE,
+            overflow = TextOverflow.Clip,
         )
     }
 }

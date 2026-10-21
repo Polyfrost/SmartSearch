@@ -1,7 +1,10 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.index
 
 import kotlinx.coroutines.launch
-import org.polyfrost.oneconfig.internal.ui.search.SearchCorpus
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchProviders
 import org.polyfrost.smartsearch.SmartSearchClient
 import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.config.StaleEntries
@@ -13,11 +16,11 @@ object DataStore : SearchIndex(SmartSearchConfig.dbPath()) {
     val staleEntries: StaleEntries = StaleEntries.load()
 
     override fun onRebuilt() {
-        SmartSearchClient.scope.launch { Embedder.queueEmbedding(ingest(SearchCorpus.corpus.values.toList())) }
+        SmartSearchClient.scope.launch { Embedder.queueEmbedding(ingest(SearchProviders.documentIds().mapNotNull(SearchProviders::document))) }
     }
 
     /** Drops every indexed document whose id is not in [keep]. */
-    fun clean(keep: Set<String> = SearchCorpus.corpus.keys) {
+    fun clean(keep: Set<String> = SearchProviders.documentIds()) {
         val stale = collectUnknownEntries(keep)
         removeEntries(stale)
         staleEntries.clear()
@@ -25,7 +28,7 @@ object DataStore : SearchIndex(SmartSearchConfig.dbPath()) {
     }
 
     /** Update the tracked stale entries in the DB */
-    fun updateTrackedStaleEntries(keep: Set<String> = SearchCorpus.corpus.keys) {
+    fun updateTrackedStaleEntries(keep: Set<String> = SearchProviders.documentIds()) {
         val stale = collectUnknownEntries(keep)
         if (staleEntries.track(stale, LAUNCHES_BEFORE_REMOVAL)) {
             staleEntries.save()

@@ -1,6 +1,9 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.eval
 
-import org.polyfrost.oneconfig.internal.ui.search.SearchScope
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchScope
 
 /**
  * Short queries like the user would type, each have multiple accepted results
@@ -1369,5 +1372,5 @@ object ShortQueries {
     )
 
     private fun short(text: String, vararg relevant: String) =
-        EvalQuery("curated-short", text, relevant.toSet(), setOf(SearchScope.Options))
+        EvalQuery("curated-short", text, relevant.toSet(), setOf(SearchScope.OPTIONS))
 }

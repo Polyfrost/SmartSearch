@@ -1,7 +1,10 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.eval
 
-import org.polyfrost.oneconfig.internal.ui.search.SearchDocument
-import org.polyfrost.oneconfig.internal.ui.search.SearchScope
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchDocument
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchScope
 import java.security.MessageDigest
 import kotlin.math.max
 import kotlin.random.Random
@@ -44,15 +47,15 @@ object QuerySet {
         }
     }
 
-    private val unambiguousOptions: List<SearchDocument<Unit>> by lazy {
+    private val unambiguousOptions: List<SearchDocument> by lazy {
         EvalCorpus.documents.filter { doc ->
-            SearchScope.Options in doc.scopes &&
+            SearchScope.OPTIONS in doc.scopes &&
                     doc.metadata.title?.lowercase()?.let { it !in EvalCorpus.ambiguousTitles } == true
         }
     }
 
     private fun titleExact() = sample(unambiguousOptions, "title-exact").map { doc ->
-        EvalQuery("title-exact", doc.metadata.title!!, setOf(doc.id), setOf(SearchScope.Options))
+        EvalQuery("title-exact", doc.metadata.title!!, setOf(doc.id), setOf(SearchScope.OPTIONS))
     }
 
     /** Search-as-you-type */
@@ -61,14 +64,14 @@ object QuerySet {
             val title = doc.metadata.title!!
             val cut = title.take(max(4, (title.length * 0.6).toInt())).trimEnd()
             if (cut.isBlank()) null
-            else EvalQuery("title-prefix", cut, optionsTitledWithPrefix(cut), setOf(SearchScope.Options))
+            else EvalQuery("title-prefix", cut, optionsTitledWithPrefix(cut), setOf(SearchScope.OPTIONS))
         }
 
     /** Every option whose title begins with [prefix]. */
     private fun optionsTitledWithPrefix(prefix: String): Set<String> {
         val lower = prefix.lowercase()
         return EvalCorpus.documents
-            .filter { SearchScope.Options in it.scopes && it.metadata.title?.lowercase()?.startsWith(lower) == true }
+            .filter { SearchScope.OPTIONS in it.scopes && it.metadata.title?.lowercase()?.startsWith(lower) == true }
             .map { it.id }
             .toSet()
     }
@@ -84,7 +87,7 @@ object QuerySet {
             // Swap two adjacent letters: the most common real typo, and one edit away from the original.
             val at = random.nextInt(1, word.length - 1)
             words[target] = word.substring(0, at) + word[at + 1] + word[at] + word.substring(at + 2)
-            EvalQuery("title-typo", words.joinToString(" "), setOf(doc.id), setOf(SearchScope.Options))
+            EvalQuery("title-typo", words.joinToString(" "), setOf(doc.id), setOf(SearchScope.OPTIONS))
         }
     }
 
@@ -95,7 +98,7 @@ object QuerySet {
             .map { doc ->
                 val words = doc.metadata.title!!.split(" ").toMutableList()
                 words.removeAt(random.nextInt(words.size))
-                EvalQuery("title-subset", words.joinToString(" "), setOf(doc.id), setOf(SearchScope.Options))
+                EvalQuery("title-subset", words.joinToString(" "), setOf(doc.id), setOf(SearchScope.OPTIONS))
             }
     }
 
@@ -106,7 +109,7 @@ object QuerySet {
                 "mod-qualified",
                 "${doc.metadata.modTitle} ${doc.metadata.title}",
                 setOf(doc.id),
-                setOf(SearchScope.Options),
+                setOf(SearchScope.OPTIONS),
             )
         }
 
@@ -128,14 +131,14 @@ object QuerySet {
             val window = max(3, words.size / 2)
             val from = random.nextInt(0, words.size - window + 1)
             val text = words.subList(from, from + window).joinToString(" ").trim(' ', '.', ',')
-            EvalQuery("description", text, setOf(doc.id), setOf(SearchScope.Options))
+            EvalQuery("description", text, setOf(doc.id), setOf(SearchScope.OPTIONS))
         }
     }
 
     /** Looking for a mod by name on the mods screen. */
     private fun modNames() = EvalCorpus.documents
-        .filter { SearchScope.Mods in it.scopes && it.metadata.title != null }
-        .map { EvalQuery("mod-name", it.metadata.title!!, setOf(it.id), setOf(SearchScope.Mods)) }
+        .filter { SearchScope.MODS in it.scopes && it.metadata.title != null }
+        .map { EvalQuery("mod-name", it.metadata.title!!, setOf(it.id), setOf(SearchScope.MODS)) }
 
     /**
      * One word out of a mod's name, when the name is made of several.
@@ -144,14 +147,14 @@ object QuerySet {
     private fun modNameParts(): List<EvalQuery> {
         val relevantByPart = HashMap<String, MutableSet<String>>()
         EvalCorpus.documents
-            .filter { SearchScope.Mods in it.scopes && it.metadata.title != null }
+            .filter { SearchScope.MODS in it.scopes && it.metadata.title != null }
             .forEach { mod ->
                 nameParts(mod.metadata.title!!).forEach { part ->
                     relevantByPart.getOrPut(part) { mutableSetOf() }.add(mod.id)
                 }
             }
         return relevantByPart.entries.sortedBy { it.key }
-            .map { (part, ids) -> EvalQuery("mod-part", part, ids, setOf(SearchScope.Mods)) }
+            .map { (part, ids) -> EvalQuery("mod-part", part, ids, setOf(SearchScope.MODS)) }
     }
 
     /**
@@ -161,7 +164,7 @@ object QuerySet {
     private fun modNameJoins(): List<EvalQuery> {
         val relevantByJoin = HashMap<String, MutableSet<String>>()
         EvalCorpus.documents
-            .filter { SearchScope.Mods in it.scopes && it.metadata.title != null }
+            .filter { SearchScope.MODS in it.scopes && it.metadata.title != null }
             .forEach { mod ->
                 for (word in mod.metadata.title!!.split(Regex("[^A-Za-z0-9]+"))) {
                     val parts = word.split(Regex("(?<=[a-z0-9])(?=[A-Z])")).map { it.lowercase() }
@@ -175,7 +178,7 @@ object QuerySet {
                 }
             }
         return relevantByJoin.entries.sortedBy { it.key }
-            .map { (join, ids) -> EvalQuery("mod-join", join, ids, setOf(SearchScope.Mods)) }
+            .map { (join, ids) -> EvalQuery("mod-join", join, ids, setOf(SearchScope.MODS)) }
     }
 
     /**
@@ -192,14 +195,14 @@ object QuerySet {
 
     /** Looking for a keybind by name on the keybind screen. */
     private fun keybinds() = EvalCorpus.documents
-        .filter { SearchScope.Keybinds in it.scopes && it.metadata.title != null }
+        .filter { SearchScope.KEYBINDS in it.scopes && it.metadata.title != null }
         .filter { it.metadata.title!!.lowercase() !in EvalCorpus.ambiguousTitles }
-        .map { EvalQuery("keybind", it.metadata.title!!, setOf(it.id), setOf(SearchScope.Keybinds)) }
+        .map { EvalQuery("keybind", it.metadata.title!!, setOf(it.id), setOf(SearchScope.KEYBINDS)) }
 
     /**
      * Take a subsample of queries per mod
      */
-    private fun sample(documents: List<SearchDocument<Unit>>, salt: String): List<SearchDocument<Unit>> =
+    private fun sample(documents: List<SearchDocument>, salt: String): List<SearchDocument> =
         documents.groupBy { it.metadata.modTitle }
             .values
             .flatMap { forMod -> forMod.sortedBy { sampleKey(salt, it.id) }.take(PER_MOD) }

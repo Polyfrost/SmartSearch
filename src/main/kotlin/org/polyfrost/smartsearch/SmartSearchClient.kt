@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch
 
 import kotlinx.coroutines.CoroutineScope
@@ -8,7 +10,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.polyfrost.oneconfig.api.event.v1.EventManager
 import org.polyfrost.oneconfig.api.event.v1.events.ShutdownEvent
-import org.polyfrost.oneconfig.internal.ui.search.SearchProviderRegistry
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchProviders
 import org.polyfrost.smartsearch.cache.RemoteCacheProvider
 import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.index.DataStore
@@ -32,7 +35,7 @@ object SmartSearchClient {
     internal fun init() {
         SmartSearchConfig.preload()
         RemoteCacheProvider.register()
-        SearchProviderRegistry.registerSearchProvider(SmartSearchProvider)
+        SearchProviders.register(SmartSearchProvider)
         if (SmartSearchConfig.enableSemantic) {
             startModel()
         }

@@ -1,6 +1,9 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.eval
 
-import org.polyfrost.oneconfig.internal.ui.search.SearchScope
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchScope
 
 /**
  * Queries like the player would phrase them
@@ -139,5 +142,5 @@ object CuratedQueries {
     )
 
     private fun curated(text: String, vararg relevant: String) =
-        EvalQuery("curated", text, relevant.toSet(), setOf(SearchScope.Options))
+        EvalQuery("curated", text, relevant.toSet(), setOf(SearchScope.OPTIONS))
 }

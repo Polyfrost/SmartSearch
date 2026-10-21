@@ -43,7 +43,7 @@ dependencies {
 
     val oneConfigVersion = "1.5.0"
     runtimeOnly("org.polyfrost.oneconfig:26.3-fabric:$oneConfigVersion")
-    for (module in listOf("config", "config-impl", "events", "internal")) {
+    for (module in listOf("config", "config-impl", "events", "ui")) {
         implementation("org.polyfrost.oneconfig:$module:$oneConfigVersion")
     }
 

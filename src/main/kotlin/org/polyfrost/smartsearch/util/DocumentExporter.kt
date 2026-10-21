@@ -1,8 +1,11 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.util
 
 import com.google.gson.GsonBuilder
-import org.polyfrost.oneconfig.internal.ui.search.SearchCorpus
-import org.polyfrost.oneconfig.internal.ui.search.SearchMetadata
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchMetadata
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchProviders
 import org.polyfrost.smartsearch.SmartSearchClient
 import org.polyfrost.smartsearch.index.toKey
 import kotlin.io.path.Path
@@ -19,9 +22,8 @@ object DocumentExporter {
     private val GSON = GsonBuilder().setPrettyPrinting().create()
 
     fun export() {
-        val corpus = SearchCorpus.corpus
         // Strip out payload
-        val documents = corpus.values.map { doc ->
+        val documents = SearchProviders.documentIds().mapNotNull(SearchProviders::document).map { doc ->
             ExportedDocument(doc.id, doc.scopes.map { it.toKey() }, doc.metadata)
         }
         runCatching {

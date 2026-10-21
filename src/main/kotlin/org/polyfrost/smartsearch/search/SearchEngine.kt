@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalOneConfigUiApi::class)
+
 package org.polyfrost.smartsearch.search
 
 import org.apache.lucene.analysis.Analyzer
@@ -5,7 +7,8 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute
 import org.apache.lucene.index.Term
 import org.apache.lucene.search.*
-import org.polyfrost.oneconfig.internal.ui.search.SearchScope
+import org.polyfrost.oneconfig.api.ui.v1.ExperimentalOneConfigUiApi
+import org.polyfrost.oneconfig.api.ui.v1.search.SearchScope
 import org.polyfrost.smartsearch.index.JOINS_SUFFIX
 import org.polyfrost.smartsearch.index.SearchIndex
 import org.polyfrost.smartsearch.index.titleKey
