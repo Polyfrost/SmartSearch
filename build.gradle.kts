@@ -1,9 +1,10 @@
-import net.fabricmc.loom.build.nesting.NestableJarGenerationTask
 import de.undercouch.gradle.tasks.download.Download
 import de.undercouch.gradle.tasks.download.Verify
+import dev.detekt.gradle.Detekt
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
+import net.fabricmc.loom.build.nesting.NestableJarGenerationTask
 
 plugins {
     kotlin("jvm") version "2.4.20"
@@ -11,6 +12,7 @@ plugins {
     id("net.fabricmc.fabric-loom")
     id("de.undercouch.download") version "5.7.0"
     id("me.modmuss50.mod-publish-plugin") version "2.2.0"
+    id("dev.detekt") version "2.0.0-alpha.6"
 }
 
 group = "org.polyfrost"
@@ -62,6 +64,12 @@ dependencies {
     include(libs.bundles.database)
 
     testImplementation(kotlin("test"))
+}
+
+// the enabled Detekt rules need type resolution, which only the per-compilation tasks have
+tasks.named<Detekt>("detekt") {
+    enabled = false
+    dependsOn(tasks.withType<Detekt>().matching { it.name != "detekt" && !it.name.endsWith("SourceSet") })
 }
 
 kotlin {
