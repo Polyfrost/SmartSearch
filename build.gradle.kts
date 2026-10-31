@@ -4,6 +4,7 @@ import dev.detekt.gradle.Detekt
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import net.fabricmc.loom.build.nesting.NestableJarGenerationTask
 
 plugins {
@@ -64,6 +65,10 @@ dependencies {
     include(libs.bundles.database)
 
     testImplementation(kotlin("test"))
+}
+
+tasks.withType<KotlinCompile> {
+    finalizedBy("detekt")
 }
 
 // the enabled Detekt rules need type resolution, which only the per-compilation tasks have
