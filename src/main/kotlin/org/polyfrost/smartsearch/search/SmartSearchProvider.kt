@@ -25,7 +25,13 @@ object SmartSearchProvider : SearchProvider() {
         query: String,
         scopes: Set<SearchScope>
     ): List<String> {
-        return SearchEngine.rank(DataStore, query, scopes, SmartSearchConfig.params, ::embed)
+        val params = SmartSearchConfig.params
+        if (SearchScope.MODS !in scopes || scopes.size == 1) {
+            return SearchEngine.rank(DataStore, query, scopes, params, ::embed)
+        }
+        val mods = SearchEngine.rank(DataStore, query, setOf(SearchScope.MODS), params, ::embed)
+        val rest = SearchEngine.rank(DataStore, query, scopes - SearchScope.MODS, params, ::embed)
+        return (mods + rest).distinct()
     }
 
     override fun onCorpusUpdate(
