@@ -176,6 +176,9 @@ tasks.named("processIncludeJars") {
         }
     }
 }
+loom {
+    uncompressNestedJars = true
+}
 
 val modrinthToken = listOf("oneconfig.publish.modrinth.token", "publish.modrinth.token", "modrinth.token")
     .firstNotNullOfOrNull { findProperty(it) }?.toString()?.takeIf { it.isNotBlank() }
