@@ -26,8 +26,8 @@ import org.polyfrost.oneconfig.api.ui.v1.components.Text
 import org.polyfrost.oneconfig.api.ui.v1.theme.OneConfigTheme
 import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.index.DataStore
-import org.polyfrost.smartsearch.index.SearchIndex
 import org.polyfrost.smartsearch.index.Embedder
+import org.polyfrost.smartsearch.index.SearchIndex
 import org.polyfrost.smartsearch.model.ModelController
 
 private const val POLL_INTERVAL_MS = 500L

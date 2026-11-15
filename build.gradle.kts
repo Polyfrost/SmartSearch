@@ -1,11 +1,11 @@
 import de.undercouch.gradle.tasks.download.Download
 import de.undercouch.gradle.tasks.download.Verify
 import dev.detekt.gradle.Detekt
+import net.fabricmc.loom.build.nesting.NestableJarGenerationTask
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import net.fabricmc.loom.build.nesting.NestableJarGenerationTask
 
 plugins {
     kotlin("jvm") version "2.4.20"

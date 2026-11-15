@@ -41,14 +41,14 @@ import org.polyfrost.smartsearch.cache.CacheStore
 import org.polyfrost.smartsearch.cache.EmbeddingCache
 import java.io.EOFException
 import java.io.FileNotFoundException
-import java.security.MessageDigest
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
+import java.security.MessageDigest
 import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.write
 import kotlin.io.path.deleteExisting
 import kotlin.io.path.listDirectoryEntries
 import kotlin.io.path.name
-import kotlin.concurrent.write
 
 /**
  * Bumped whenever [SearchIndex.buildDocument] changes how a document is laid out

@@ -10,8 +10,8 @@ import org.polyfrost.oneconfig.api.ui.v1.search.SearchScope
 import org.polyfrost.smartsearch.SmartSearchClient
 import org.polyfrost.smartsearch.config.SmartSearchConfig
 import org.polyfrost.smartsearch.index.DataStore
-import org.polyfrost.smartsearch.index.SearchIndex
 import org.polyfrost.smartsearch.index.Embedder
+import org.polyfrost.smartsearch.index.SearchIndex
 import org.polyfrost.smartsearch.model.ModelController
 
 object SmartSearchProvider : SearchProvider() {
