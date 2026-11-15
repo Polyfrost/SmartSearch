@@ -14,6 +14,7 @@ plugins {
     id("de.undercouch.download") version "5.7.0"
     id("me.modmuss50.mod-publish-plugin") version "2.2.0"
     id("dev.detekt") version "2.0.0-alpha.6"
+    id("com.diffplug.spotless") version "8.11.0"
 }
 
 group = "org.polyfrost"
@@ -65,6 +66,17 @@ dependencies {
     include(libs.bundles.database)
 
     testImplementation(kotlin("test"))
+}
+
+tasks.withType<KotlinCompile>().configureEach {
+    finalizedBy("spotlessKotlinCheck")
+}
+
+spotless {
+    kotlin {
+        target("**/*.kt", "**/*.kts")
+        ktlint()
+    }
 }
 
 // the enabled Detekt rules need type resolution, which only the per-compilation tasks have
